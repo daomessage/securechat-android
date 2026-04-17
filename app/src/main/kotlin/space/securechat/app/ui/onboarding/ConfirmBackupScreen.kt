@@ -50,7 +50,10 @@ fun ConfirmBackupScreen(appViewModel: AppViewModel) {
         return
     }
 
-    val currentIdx = testIndices[currentStep]
+    // Compose state-tearing 保护:LazyGrid 的 DerivedState 可能在 currentStep
+    // 越界后的 snapshot 里被计算一次(早于函数的 early return 生效),所以下标统一 clamp。
+    val safeStep = currentStep.coerceIn(0, testIndices.lastIndex)
+    val currentIdx = testIndices[safeStep]
 
     Column(
         Modifier.fillMaxSize().background(DarkBg).padding(24.dp),
@@ -98,7 +101,7 @@ fun ConfirmBackupScreen(appViewModel: AppViewModel) {
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier.height(120.dp)
                 ) {
-                    itemsIndexed(options[currentStep]) { _, option ->
+                    itemsIndexed(options[safeStep]) { _, option ->
                         Box(
                             Modifier
                                 .clip(RoundedCornerShape(10.dp))
