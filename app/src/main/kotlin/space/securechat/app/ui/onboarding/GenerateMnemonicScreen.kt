@@ -25,6 +25,8 @@ import space.securechat.app.viewmodel.AppViewModel
  */
 @Composable
 fun GenerateMnemonicScreen(appViewModel: AppViewModel) {
+    // 敏感屏：禁截屏/录屏
+    space.securechat.app.ui.components.SecureScreen()
     val mnemonic by appViewModel.tempMnemonic.collectAsStateWithLifecycle()
     val words = remember(mnemonic) { mnemonic.split(" ") }
     var checkedBackup by remember { mutableStateOf(false) }

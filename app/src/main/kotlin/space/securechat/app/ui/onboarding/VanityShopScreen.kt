@@ -40,7 +40,40 @@ fun VanityShopScreen(appViewModel: AppViewModel) {
     var isSearching by remember { mutableStateOf(false) }
     var selectedItem by remember { mutableStateOf<VanityItem?>(null) }
     var purchaseUrl by remember { mutableStateOf<String?>(null) }
+    var orderId by remember { mutableStateOf<String?>(null) }
+    var orderExpiredAtMs by remember { mutableStateOf<Long?>(null) }
+    var orderStatus by remember { mutableStateOf("") }
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // 倒计时 ticker
+    LaunchedEffect(orderId) {
+        if (orderId == null) return@LaunchedEffect
+        while (true) {
+            nowMs = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+    // 订单状态轮询
+    LaunchedEffect(orderId) {
+        val oid = orderId ?: return@LaunchedEffect
+        while (true) {
+            try {
+                val s = client.vanity.orderStatus(oid)
+                orderStatus = s
+                if (s == "confirmed") {
+                    val alias = client.vanity.bind(oid)
+                    appViewModel.setRoute(AppRoute.SET_NICKNAME)
+                    return@LaunchedEffect
+                }
+                if (s == "expired" || s == "failed") return@LaunchedEffect
+            } catch (e: Exception) {
+                errorMsg = e.message
+            }
+            kotlinx.coroutines.delay(3000)
+        }
+    }
 
     fun search() {
         if (query.isBlank()) return
@@ -118,6 +151,9 @@ fun VanityShopScreen(appViewModel: AppViewModel) {
                             try {
                                 val result = client.vanity.purchase(item.aliasId)
                                 purchaseUrl = result.paymentUrl
+                                orderId = result.orderId
+                                // expiredAt 是 epoch ms
+                                orderExpiredAtMs = result.expiredAt
                                 selectedItem = item
                             } catch (e: Exception) { errorMsg = e.message }
                         }
@@ -128,19 +164,38 @@ fun VanityShopScreen(appViewModel: AppViewModel) {
 
         // 支付链接（弹出提示）
         purchaseUrl?.let { url ->
+            val remainSec = orderExpiredAtMs?.let { ((it - nowMs) / 1000).coerceAtLeast(0) }
+            val remainStr = remainSec?.let {
+                "%d:%02d".format(it / 60, it % 60)
+            } ?: "—"
+            val statusLabel = when (orderStatus) {
+                "pending"   -> "Waiting for payment…"
+                "confirmed" -> "Confirmed! Binding…"
+                "expired"   -> "Order expired"
+                "failed"    -> "Payment failed"
+                else        -> "Loading…"
+            }
             Card(
                 colors = CardDefaults.cardColors(containerColor = Surface1),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Payment Ready", color = TextPrimary, fontWeight = FontWeight.Bold)
-                    Text("Complete payment to claim @${selectedItem?.aliasId}", color = TextMuted, fontSize = 13.sp)
-                    Text(url, color = BlueAccent, fontSize = 12.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Payment", color = TextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text(remainStr, color = Warning, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Text("Pay to claim @${selectedItem?.aliasId}", color = TextMuted, fontSize = 13.sp)
+                    Text(statusLabel, color = if (orderStatus == "confirmed") Success else BlueAccent, fontSize = 12.sp)
                     Button(
-                        onClick = { appViewModel.setRoute(AppRoute.SET_NICKNAME) },
+                        onClick = {
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                context.startActivity(intent)
+                            } catch (_: Exception) {}
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = BlueAccent),
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Continue to Setup") }
+                    ) { Text("Open Payment Page") }
                 }
             }
         }
@@ -163,25 +218,30 @@ private fun VanityResultRow(item: VanityItem, selected: Boolean, onBuy: () -> Un
         ) {
             Column {
                 Text("@${item.aliasId}", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                val tierLabel = when (item.tier) {
+                    "top"      -> "Top"
+                    "premium"  -> "Premium"
+                    "standard" -> "Standard"
+                    else       -> item.tier
+                }
+                val tierColor = when (item.tier) {
+                    "top"      -> Warning
+                    "premium"  -> BlueAccent
+                    else       -> TextMuted
+                }
                 Text(
-                    when (item.status) {
-                        "available" -> "Available"
-                        "reserved" -> "Reserved"
-                        else -> item.status
-                    },
-                    color = if (item.status == "available") Success else TextMuted,
+                    if (item.isFeatured) "★ $tierLabel" else tierLabel,
+                    color = tierColor,
                     fontSize = 12.sp
                 )
             }
-            if (item.status == "available") {
-                Button(
-                    onClick = onBuy,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BlueAccent),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text("$${item.priceUsdt} USDT", fontSize = 13.sp)
-                }
+            Button(
+                onClick = onBuy,
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = BlueAccent),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text("$${item.priceUsdt} USDT", fontSize = 13.sp)
             }
         }
     }

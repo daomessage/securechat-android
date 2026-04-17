@@ -11,6 +11,15 @@ lifecycle = "2.6.2"
 coil = "2.6.0"
 # Firebase
 firebaseMessaging = "24.0.0"
+# QR
+zxingCore = "3.5.3"
+zxingAndroidEmbedded = "4.3.0"
+# CameraX (for QR scan)
+cameraX = "1.3.4"
+# Coroutines play-services (FirebaseMessaging.token.await)
+coroutinesPlayServices = "1.7.3"
+# Stream WebRTC Android (libwebrtc wrapper)
+streamWebrtc = "1.1.3"
 
 [libraries]
 # Compose BOM
@@ -30,6 +39,14 @@ lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-ru
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 # Firebase
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging-ktx", version.ref = "firebaseMessaging" }
+# QR (生成 + 解析)
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
+zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingAndroidEmbedded" }
+# Coroutines x Play Services
+coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutinesPlayServices" }
+# Stream WebRTC Android
+stream-webrtc-android = { group = "io.getstream", name = "stream-webrtc-android", version.ref = "streamWebrtc" }
+stream-webrtc-android-ui = { group = "io.getstream", name = "stream-webrtc-android-ui", version.ref = "streamWebrtc" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

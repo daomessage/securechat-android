@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package space.securechat.app.ui.contacts
 
 import androidx.compose.foundation.background
@@ -11,7 +13,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,6 +27,8 @@ import kotlinx.coroutines.launch
 import space.securechat.sdk.SecureChatClient
 import space.securechat.sdk.contacts.Friend
 import space.securechat.sdk.contacts.UserProfile
+import space.securechat.app.ui.components.QrCodeImage
+import space.securechat.app.ui.components.QrScannerLauncher
 import space.securechat.app.ui.theme.*
 import space.securechat.app.viewmodel.AppViewModel
 
@@ -36,68 +42,125 @@ fun ContactsTab(appViewModel: AppViewModel) {
     val client = SecureChatClient.getInstance()
     val scope = rememberCoroutineScope()
     var selectedSubTab by remember { mutableIntStateOf(0) }
-    var friends by remember { mutableStateOf<List<Friend>>(emptyList()) }
-    var pendingFriends by remember { mutableStateOf<List<space.securechat.sdk.http.FriendProfile>>(emptyList()) }
+    // 全部好友记录 — 用 friendStatus / friendDirection 拆分展示
+    var allRecords by remember { mutableStateOf<List<Friend>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var searchResult by remember { mutableStateOf<UserProfile?>(null) }
     var isSearching by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
     var successMsg by remember { mutableStateOf<String?>(null) }
 
+    val accepted = remember(allRecords) { allRecords.filter { it.friendStatus == "accepted" } }
+    val pendingReceived = remember(allRecords) {
+        allRecords.filter { it.friendStatus == "pending" && it.friendDirection == "received" }
+    }
+    val pendingSent = remember(allRecords) {
+        allRecords.filter { it.friendStatus == "pending" && it.friendDirection == "sent" }
+    }
+
     suspend fun reload() {
-        friends = client.contacts.syncFriends()
-        // 获取待处理申请
         try {
-            val resp = client.contacts.syncFriends() // 从 friends 过滤 pending
-            val all = space.securechat.sdk.SecureChatClient.getInstance()
-                .let { c ->
-                    // 直接拿全部好友（含 pending）
-                    client.contacts.syncFriends()
-                }
+            allRecords = client.contacts.syncFriends()
+            appViewModel.setPendingRequestCount(
+                allRecords.count { it.friendStatus == "pending" && it.friendDirection == "received" }
+            )
         } catch (_: Exception) {}
-        appViewModel.setPendingRequestCount(pendingFriends.size)
     }
 
     LaunchedEffect(Unit) { scope.launch { reload() } }
 
-    Column(Modifier.fillMaxSize().background(DarkBg)) {
-        // 顶栏
-        Text(
-            "Contacts",
-            color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
-        )
+    var showMyQr by remember { mutableStateOf(false) }
+    val userInfo by appViewModel.userInfo.collectAsState()
 
-        // 子 Tab
+    // 扫码：返回 alias_id（兼容 securechat://add?aliasId=xxx 与裸 alias）
+    val qrLauncher = QrScannerLauncher { rawText ->
+        val alias = parseAliasFromQr(rawText)
+        if (alias != null) {
+            scope.launch {
+                try {
+                    client.contacts.sendFriendRequest(alias)
+                    successMsg = "Friend request sent to @$alias"
+                    reload()
+                } catch (e: Exception) { errorMsg = e.message ?: "Failed" }
+            }
+        } else {
+            errorMsg = "Invalid QR code"
+        }
+    }
+
+    Column(Modifier.fillMaxSize().background(DarkBg)) {
+        // 顶栏 — 标题 + 扫码 + 我的二维码
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Contacts",
+                color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = { qrLauncher.launch() }) {
+                Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan QR", tint = BlueAccent)
+            }
+            IconButton(onClick = { showMyQr = true }) {
+                Icon(Icons.Default.QrCode2, contentDescription = "My QR", tint = BlueAccent)
+            }
+        }
+
+        // 子 Tab — Friends / Requests / Add
+        val tabs = listOf("Friends", "Requests", "Add")
         TabRow(
             selectedTabIndex = selectedSubTab,
             containerColor = DarkBg,
             contentColor = BlueAccent,
             indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    Modifier.tabIndicatorOffset(tabPositions[selectedSubTab]),
+                TabRowDefaults.Indicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedSubTab]),
                     color = BlueAccent
                 )
             }
         ) {
-            listOf("Friends", "Add").forEachIndexed { idx, label ->
+            tabs.forEachIndexed { idx, label ->
                 Tab(
                     selected = selectedSubTab == idx,
                     onClick = { selectedSubTab = idx },
-                    text = { Text(label, color = if (selectedSubTab == idx) BlueAccent else TextMuted) }
+                    text = {
+                        if (idx == 1 && pendingReceived.isNotEmpty()) {
+                            BadgedBox(badge = { Badge { Text("${pendingReceived.size}", fontSize = 10.sp) } }) {
+                                Text(label, color = if (selectedSubTab == idx) BlueAccent else TextMuted)
+                            }
+                        } else {
+                            Text(label, color = if (selectedSubTab == idx) BlueAccent else TextMuted)
+                        }
+                    }
                 )
             }
         }
 
         when (selectedSubTab) {
             0 -> FriendsList(
-                friends = friends,
+                friends = accepted,
                 onOpenChat = { conv ->
                     appViewModel.setActiveChatId(conv)
                     appViewModel.clearUnread(conv)
                 }
             )
-            1 -> AddFriendPanel(
+            1 -> RequestsList(
+                received = pendingReceived,
+                sent = pendingSent,
+                onAccept = { friendshipId ->
+                    scope.launch {
+                        try {
+                            client.contacts.acceptFriendRequest(friendshipId)
+                            successMsg = "Friend request accepted"
+                            reload()
+                        } catch (e: Exception) {
+                            errorMsg = e.message ?: "Accept failed"
+                        }
+                    }
+                }
+            )
+            2 -> AddFriendPanel(
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
                 result = searchResult,
@@ -118,11 +181,43 @@ fun ContactsTab(appViewModel: AppViewModel) {
                             client.contacts.sendFriendRequest(aliasId)
                             successMsg = "Friend request sent!"
                             searchResult = null
+                            reload()
                         } catch (e: Exception) { errorMsg = e.message }
                     }
                 }
             )
         }
+    }
+
+    if (showMyQr) {
+        val payload = "securechat://add?aliasId=${userInfo.aliasId}"
+        AlertDialog(
+            onDismissRequest = { showMyQr = false },
+            containerColor = Surface1,
+            shape = RoundedCornerShape(16.dp),
+            title = {
+                Text("My QR Code", color = TextPrimary, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        Modifier.padding(8.dp).background(TextPrimary, RoundedCornerShape(8.dp)).padding(12.dp)
+                    ) {
+                        QrCodeImage(content = payload, sizeDp = 220)
+                    }
+                    Text(userInfo.nickname.ifEmpty { "Me" }, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    Text("@${userInfo.aliasId}", color = TextMuted, fontSize = 12.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMyQr = false }) {
+                    Text("Close", color = BlueAccent)
+                }
+            }
+        )
     }
 }
 
@@ -159,7 +254,7 @@ private fun FriendsList(friends: List<Friend>, onOpenChat: (String) -> Unit) {
                     }
                     Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(20.dp))
                 }
-                HorizontalDivider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 82.dp))
+                Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 82.dp))
             }
         }
     }
@@ -237,4 +332,99 @@ private fun AddFriendPanel(
             }
         }
     }
+}
+
+@Composable
+private fun RequestsList(
+    received: List<Friend>,
+    sent: List<Friend>,
+    onAccept: (Long) -> Unit
+) {
+    if (received.isEmpty() && sent.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("📬", fontSize = 40.sp)
+                Text("No pending requests", color = TextMuted, fontSize = 16.sp)
+            }
+        }
+        return
+    }
+    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
+        if (received.isNotEmpty()) {
+            item {
+                Text(
+                    "Received (${received.size})",
+                    color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+            }
+            items(received, key = { it.friendshipId }) { req ->
+                RequestRow(req, action = {
+                    Button(
+                        onClick = { onAccept(req.friendshipId) },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = BlueAccent),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                    ) { Text("Accept", fontSize = 13.sp) }
+                })
+                Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 82.dp))
+            }
+        }
+        if (sent.isNotEmpty()) {
+            item {
+                Text(
+                    "Sent (${sent.size})",
+                    color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+            }
+            items(sent, key = { it.friendshipId }) { req ->
+                RequestRow(req, action = {
+                    Text("Pending", color = TextMuted, fontSize = 13.sp)
+                })
+                Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 82.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun RequestRow(req: Friend, action: @Composable () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Box(
+            Modifier.size(48.dp).clip(CircleShape).background(BlueAccent.copy(0.2f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                req.nickname.take(2).uppercase().ifEmpty { "?" },
+                color = BlueAccent, fontWeight = FontWeight.Bold
+            )
+        }
+        Column(Modifier.weight(1f)) {
+            Text(req.nickname.ifEmpty { req.aliasId }, color = TextPrimary, fontWeight = FontWeight.Medium)
+            Text("@${req.aliasId}", color = TextMuted, fontSize = 12.sp)
+        }
+        action()
+    }
+}
+
+/**
+ * 解析 QR 文本：
+ *   - "securechat://add?aliasId=foo" → "foo"
+ *   - "foo" 形如纯 alias → "foo"
+ *   - 否则 null
+ */
+private fun parseAliasFromQr(raw: String): String? {
+    val t = raw.trim()
+    val prefix = "securechat://add?aliasId="
+    if (t.startsWith(prefix)) {
+        val after = t.removePrefix(prefix).substringBefore('&').trim()
+        return after.ifBlank { null }
+    }
+    // 简单 alias 校验：3-30 个字母/数字/下划线
+    return if (Regex("^[A-Za-z0-9_]{3,30}$").matches(t)) t else null
 }

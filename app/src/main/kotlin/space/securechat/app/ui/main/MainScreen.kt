@@ -21,6 +21,8 @@ import space.securechat.app.ui.channels.*
 import space.securechat.app.ui.contacts.*
 import space.securechat.app.ui.settings.*
 import space.securechat.app.ui.chat.ChatScreen
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import space.securechat.sdk.SecureChatClient
 
 /**
@@ -29,6 +31,7 @@ import space.securechat.sdk.SecureChatClient
  * 四个 Tab：Messages / Channels / Contacts / Settings
  * 点击会话条目 → 推入 ChatScreen（对标 activeChatId 逻辑）
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(appViewModel: AppViewModel) {
     val activeTab by appViewModel.activeTab.collectAsStateWithLifecycle()
@@ -39,8 +42,55 @@ fun MainScreen(appViewModel: AppViewModel) {
 
     // 同步好友（进入 main 后）
     val client = SecureChatClient.getInstance()
+    val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) {
         try { client.contacts.syncFriends() } catch (_: Exception) {}
+    }
+
+    // 推送权限引导（首次进 MainScreen 弹一次）
+    val prefs = remember { context.getSharedPreferences("securechat", android.content.Context.MODE_PRIVATE) }
+    var showPushPrompt by remember { mutableStateOf(!prefs.getBoolean("push_prompted", false)) }
+    if (showPushPrompt && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+        val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+            contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            prefs.edit().putBoolean("push_prompted", true).apply()
+            showPushPrompt = false
+            if (granted) {
+                kotlinx.coroutines.MainScope().launch {
+                    try {
+                        val token = com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+                        client.push.register(token)
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+        AlertDialog(
+            onDismissRequest = {
+                prefs.edit().putBoolean("push_prompted", true).apply()
+                showPushPrompt = false
+            },
+            containerColor = space.securechat.app.ui.theme.Surface1,
+            title = { Text("Enable Notifications", color = space.securechat.app.ui.theme.TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "Turn on notifications so you never miss a message from friends.",
+                    color = space.securechat.app.ui.theme.TextMuted, fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS) },
+                    colors = ButtonDefaults.buttonColors(containerColor = space.securechat.app.ui.theme.BlueAccent)
+                ) { Text("Enable") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    prefs.edit().putBoolean("push_prompted", true).apply()
+                    showPushPrompt = false
+                }) { Text("Later", color = space.securechat.app.ui.theme.TextMuted) }
+            }
+        )
     }
 
     // ChatScreen 覆盖（animatedVisibility）
@@ -127,5 +177,5 @@ private enum class TabItem(
     MESSAGES (MainTab.MESSAGES,  "Messages",  Icons.Default.ChatBubbleOutline, Icons.Default.ChatBubble),
     CHANNELS (MainTab.CHANNELS,  "Channels",  Icons.Default.Campaign,          Icons.Default.Campaign),
     CONTACTS (MainTab.CONTACTS,  "Contacts",  Icons.Default.PeopleOutline,     Icons.Default.People),
-    SETTINGS (MainTab.SETTINGS,  "Settings",  Icons.Default.SettingsOutlined,  Icons.Default.Settings),
+    SETTINGS (MainTab.SETTINGS,  "Settings",  Icons.Default.Settings,          Icons.Default.Settings),
 }

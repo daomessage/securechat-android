@@ -70,7 +70,7 @@ fun ConfirmBackupScreen(appViewModel: AppViewModel) {
 
         // 进度条
         LinearProgressIndicator(
-            progress = { (currentStep.toFloat() + 1) / testIndices.size },
+            progress = (currentStep + 1).toFloat() / testIndices.size.toFloat(),
             modifier = Modifier.fillMaxWidth(),
             color = BlueAccent,
             trackColor = Surface2

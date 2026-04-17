@@ -34,6 +34,10 @@ fun ChannelsTab(appViewModel: AppViewModel) {
     var searchQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<ChannelInfo>>(emptyList()) }
     var showCreate by remember { mutableStateOf(false) }
+    var showQuotaPay by remember { mutableStateOf(false) }
+    var quotaCreateName by remember { mutableStateOf("") }
+    var quotaCreateDesc by remember { mutableStateOf("") }
+    var quotaError by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -118,9 +122,58 @@ fun ChannelsTab(appViewModel: AppViewModel) {
                     try {
                         client.channels.create(name, desc)
                         myChannels = client.channels.getMine()
-                    } catch (_: Exception) {}
+                        showCreate = false
+                    } catch (e: Exception) {
+                        val msg = e.message.orEmpty()
+                        if (msg.contains("QUOTA", ignoreCase = true)) {
+                            showCreate = false
+                            quotaCreateName = name
+                            quotaCreateDesc = desc
+                            showQuotaPay = true
+                        } else {
+                            quotaError = msg
+                            showCreate = false
+                        }
+                    }
                 }
-                showCreate = false
+            }
+        )
+    }
+
+    // 配额支付弹窗
+    if (showQuotaPay) {
+        QuotaPaymentDialog(
+            client = client,
+            onDismiss = {
+                showQuotaPay = false
+                quotaCreateName = ""
+                quotaCreateDesc = ""
+            },
+            onPaid = {
+                showQuotaPay = false
+                scope.launch {
+                    try {
+                        // 支付确认后重试创建频道
+                        client.channels.create(quotaCreateName, quotaCreateDesc)
+                        myChannels = client.channels.getMine()
+                    } catch (e: Exception) {
+                        quotaError = e.message
+                    } finally {
+                        quotaCreateName = ""
+                        quotaCreateDesc = ""
+                    }
+                }
+            }
+        )
+    }
+    quotaError?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { quotaError = null },
+            containerColor = Surface1,
+            title = { Text("Error", color = TextPrimary) },
+            text = { Text(msg, color = TextMuted) },
+            confirmButton = {
+                TextButton(onClick = { quotaError = null }) { Text("OK", color = BlueAccent) }
             }
         )
     }
@@ -180,6 +233,74 @@ private fun CreateChannelDialog(onDismiss: () -> Unit, onCreate: (String, String
                 onClick = { if (name.isNotBlank()) onCreate(name, desc) },
                 colors = ButtonDefaults.buttonColors(containerColor = BlueAccent)
             ) { Text("Create") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = TextMuted) }
+        }
+    )
+}
+
+@Composable
+private fun QuotaPaymentDialog(
+    client: SecureChatClient,
+    onDismiss: () -> Unit,
+    onPaid: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var order by remember { mutableStateOf<space.securechat.sdk.channels.ChannelTradeOrder?>(null) }
+    var status by remember { mutableStateOf("") }
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        try {
+            order = client.channels.buyQuota()
+        } catch (e: Exception) { loadError = e.message }
+    }
+    LaunchedEffect(order) {
+        if (order == null) return@LaunchedEffect
+        while (true) {
+            nowMs = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+    // 注：服务端没有 channel quota orderStatus 接口，则需手动按提示返回点击"已支付"
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Surface1,
+        title = { Text("Buy Channel Quota", color = TextPrimary) },
+        text = {
+            val o = order
+            if (loadError != null) {
+                Text("Failed to start payment: $loadError", color = Danger)
+            } else if (o == null) {
+                Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = BlueAccent)
+                }
+            } else {
+                val expMs = remember(o.expiredAt) {
+                    runCatching {
+                        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+                        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                        sdf.parse(o.expiredAt)?.time ?: 0L
+                    }.getOrDefault(0L)
+                }
+                val remainSec = ((expMs - nowMs) / 1000).coerceAtLeast(0)
+                val mm = remainSec / 60
+                val ss = remainSec % 60
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Price: ${o.priceUsdt} USDT", color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    Text("Pay to: ${o.payTo}", color = TextMuted, fontSize = 12.sp)
+                    Text("Expires in %d:%02d".format(mm, ss), color = Warning, fontSize = 12.sp)
+                    Text("Status: ${status.ifEmpty { "pending" }}", color = BlueAccent, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onPaid) {
+                Text("I've Paid", color = BlueAccent)
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel", color = TextMuted) }

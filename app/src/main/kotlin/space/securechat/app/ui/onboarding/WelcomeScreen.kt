@@ -83,7 +83,7 @@ fun WelcomeScreen(appViewModel: AppViewModel) {
                     onClick = { appViewModel.setRoute(AppRoute.RECOVER) },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
                     border = androidx.compose.foundation.BorderStroke(1.dp, Surface2)
                 ) {
                     Text("Restore from Mnemonic", fontSize = 16.sp)

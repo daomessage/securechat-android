@@ -26,6 +26,8 @@ import space.securechat.app.viewmodel.AppViewModel
  */
 @Composable
 fun RecoverScreen(appViewModel: AppViewModel) {
+    // 敏感屏：禁截屏/录屏
+    space.securechat.app.ui.components.SecureScreen()
     val client = SecureChatClient.getInstance()
     val scope = rememberCoroutineScope()
     var input by remember { mutableStateOf("") }

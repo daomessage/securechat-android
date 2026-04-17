@@ -1,7 +1,9 @@
 package space.securechat.app.ui.messages
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -38,6 +40,8 @@ fun MessagesTab(appViewModel: AppViewModel) {
         try { friends = client.contacts.syncFriends() } catch (_: Exception) {}
     }
 
+    var deleteTarget by remember { mutableStateOf<Friend?>(null) }
+
     Column(Modifier.fillMaxSize().background(DarkBg)) {
         // 顶栏
         Row(
@@ -65,21 +69,56 @@ fun MessagesTab(appViewModel: AppViewModel) {
                         onClick = {
                             appViewModel.setActiveChatId(friend.conversationId)
                             appViewModel.clearUnread(friend.conversationId)
-                        }
+                        },
+                        onLongClick = { deleteTarget = friend }
                     )
-                    HorizontalDivider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 76.dp))
+                    Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 76.dp))
                 }
             }
         }
     }
+
+    // 长按删除确认弹窗
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            containerColor = Surface1,
+            title = { Text("Delete Chat", color = TextPrimary) },
+            text = {
+                Text(
+                    "Delete all messages with ${target.nickname}? This cannot be undone.",
+                    color = TextMuted, fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val convId = target.conversationId
+                        deleteTarget = null
+                        scope.launch {
+                            try {
+                                client.clearHistory(convId)
+                                appViewModel.clearUnread(convId)
+                            } catch (_: Exception) {}
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Danger)
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = TextMuted) }
+            }
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ConversationRow(friend: Friend, unread: Int, onClick: () -> Unit) {
+private fun ConversationRow(friend: Friend, unread: Int, onClick: () -> Unit, onLongClick: () -> Unit = {}) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)
