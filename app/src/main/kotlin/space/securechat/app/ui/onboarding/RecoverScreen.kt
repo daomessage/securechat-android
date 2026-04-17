@@ -20,9 +20,19 @@ import space.securechat.app.viewmodel.AppViewModel
 
 /**
  * RecoverScreen — 对标 Web: Recover.tsx
- * 输入 12 词助记词恢复账号（直接调用 restoreSession 或验证助记词后注册）
+ * 输入 12 词助记词恢复账号 → 直接 loginWithMnemonic 进 Main。
  *
- * 流程：validateMnemonic → 存 tempMnemonic → 跳 set_nickname
+ * 流程:
+ *   1. validateMnemonic 校验 12 词
+ *   2. client.auth.loginWithMnemonic(mnemonic):
+ *        - 尝试 register;若服务端 409 说明已注册,从 response 拿 uuid+alias_id
+ *        - 用私钥做 auth challenge/verify 拿 JWT
+ *        - 持久化 identity 到 Room
+ *   3. connect() 建 WebSocket
+ *   4. 跳 Main
+ *
+ * 不再经过 SetNickname 页 — 恢复场景用户本来就有旧昵称,服务端已有记录。
+ * 想改昵称去「设置」页改。
  */
 @Composable
 fun RecoverScreen(appViewModel: AppViewModel) {
@@ -44,9 +54,23 @@ fun RecoverScreen(appViewModel: AppViewModel) {
         errorMsg = null
         scope.launch {
             try {
-                // 助记词合法 → 存入内存，走 set_nickname 完成注册/登录
-                appViewModel.setTempMnemonic(mnemonic)
-                appViewModel.setRoute(AppRoute.SET_NICKNAME)
+                // 🔒 SDK:loginWithMnemonic = register-or-409-auth,一步到位(SDK 已存 identity 到 Room)
+                val aliasId = client.auth.loginWithMnemonic(mnemonic)
+
+                // 从 SDK 读已持久化的身份(含服务端已存的 nickname)
+                val (_, nickname) = client.auth.restoreSession() ?: (aliasId to "Recovered User")
+
+                // 👤 App:更新全局状态
+                appViewModel.setUserInfo(aliasId, nickname)
+
+                // 🔒 SDK:建立 WebSocket
+                client.connect()
+                appViewModel.setSdkReady(true)
+
+                // 清内存中的助记词
+                appViewModel.setTempMnemonic("")
+
+                appViewModel.setRoute(AppRoute.MAIN)
             } catch (e: Exception) {
                 errorMsg = "Recovery failed: ${e.message}"
             } finally {
