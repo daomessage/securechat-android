@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Public Downloads（用于聊天导出文件分享） -->
+    <external-path
+        name="downloads"
+        path="Download/" />
+    <!-- 应用内 cache（备份用） -->
+    <cache-path
+        name="cache"
+        path="." />
+</paths>

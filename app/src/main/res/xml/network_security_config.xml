@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- ── 生产环境：仅允许 HTTPS ── -->
+    <domain-config cleartextTrafficPermitted="false">
+        <!-- 信任系统 CA -->
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+
+        <!-- 特定域 (relay.daomessage.com) -->
+        <domain includeSubdomains="true">relay.daomessage.com</domain>
+    </domain-config>
+
+    <!-- ── 本地测试：允许 localhost HTTP（可选）── -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>
