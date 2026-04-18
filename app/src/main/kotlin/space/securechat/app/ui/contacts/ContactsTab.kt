@@ -149,13 +149,24 @@ fun ContactsTab(appViewModel: AppViewModel) {
                 received = pendingReceived,
                 sent = pendingSent,
                 onAccept = { friendshipId ->
+                    // 乐观更新:立刻把 UI 里那条 pending 标为 accepted,不等服务器 200
+                    // 用户点完按钮 UI 立刻有反应,不用盯着转圈等两三秒
+                    allRecords = allRecords.map {
+                        if (it.friendshipId == friendshipId) it.copy(friendStatus = "accepted") else it
+                    }
+                    appViewModel.setPendingRequestCount(
+                        allRecords.count { it.friendStatus == "pending" && it.friendDirection == "received" }
+                    )
                     scope.launch {
                         try {
                             client.contacts.acceptFriendRequest(friendshipId)
                             successMsg = "Friend request accepted"
+                            // 成功后再 reload 一次拿 conv_id 等服务端字段
                             reload()
                         } catch (e: Exception) {
                             errorMsg = e.message ?: "Accept failed"
+                            // 失败则回滚:重新 reload 拿回真实状态
+                            reload()
                         }
                     }
                 }
