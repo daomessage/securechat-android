@@ -60,7 +60,8 @@ fun ContactsTab(appViewModel: AppViewModel) {
 
     suspend fun reload() {
         try {
-            allRecords = client.contacts.syncFriends()
+            client.contacts.refresh()
+            allRecords = client.contacts.friends
             appViewModel.setPendingRequestCount(
                 allRecords.count { it.friendStatus == "pending" && it.friendDirection == "received" }
             )
