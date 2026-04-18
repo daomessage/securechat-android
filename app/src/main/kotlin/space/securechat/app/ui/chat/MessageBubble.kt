@@ -111,11 +111,7 @@ fun MessageBubble(
                         color = TextMuted, fontSize = 15.sp, lineHeight = 22.sp
                     )
                     msg.msgType == "image" -> {
-                        // 图片占位（实际下载可走 client.downloadMedia）
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("🖼️", fontSize = 18.sp)
-                            Text("Image", color = TextPrimary, fontSize = 14.sp)
-                        }
+                        ImageMessageBubble(msg = msg)
                     }
                     msg.msgType == "file" -> {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -257,6 +253,86 @@ private fun VoiceMessagePlayer(msg: StoredMessage) {
             listOf(6, 10, 8, 12, 6, 10, 8).forEach { h ->
                 Box(Modifier.size(width = 2.dp, height = h.dp).background(TextPrimary.copy(alpha = 0.6f)))
             }
+        }
+    }
+}
+
+
+/**
+ * ImageMessageBubble — E2EE 图片气泡
+ * 流程: 首次 render 启动 异步下载+解密 → 写到 cache → Coil 辩识 file:// URI 渲染
+ *         点击图片 → 全屏查看(Intent.ACTION_VIEW)
+ */
+@Composable
+private fun ImageMessageBubble(msg: StoredMessage) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var cachedFile by remember(msg.id) { mutableStateOf<java.io.File?>(null) }
+    var loading by remember(msg.id) { mutableStateOf(true) }
+    var error by remember(msg.id) { mutableStateOf<String?>(null) }
+
+    // 首次进入异步下载解密
+    LaunchedEffect(msg.id) {
+        val url = msg.mediaUrl
+        if (url.isNullOrEmpty()) { error = "No URL"; loading = false; return@LaunchedEffect }
+        val dir = java.io.File(context.cacheDir, "decrypted_images").apply { mkdirs() }
+        val f = java.io.File(dir, "img_${msg.id}.bin")
+        if (f.exists() && f.length() > 0) {
+            cachedFile = f
+            loading = false
+            return@LaunchedEffect
+        }
+        scope.launch {
+            try {
+                val client = space.securechat.sdk.SecureChatClient.getInstance()
+                val bytes = client.downloadMedia(msg.conversationId, url)
+                f.writeBytes(bytes)
+                cachedFile = f
+            } catch (e: Exception) {
+                android.util.Log.e("ImageBubble", "download failed", e)
+                error = e.message ?: "download failed"
+            } finally {
+                loading = false
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .size(width = 200.dp, height = 160.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(TextMuted.copy(alpha = 0.15f))
+            .clickable(enabled = cachedFile != null) {
+                val f = cachedFile ?: return@clickable
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    f
+                )
+                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "image/*")
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                try { context.startActivity(intent) } catch (_: Exception) {}
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            loading -> CircularProgressIndicator(color = TextPrimary, modifier = Modifier.size(28.dp), strokeWidth = 2.dp)
+            error != null -> Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text("🖨", fontSize = 24.sp)
+                Text("Image unavailable", color = TextMuted, fontSize = 12.sp)
+            }
+            cachedFile != null -> coil.compose.AsyncImage(
+                model = cachedFile!!,
+                contentDescription = "encrypted image",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+            )
         }
     }
 }
