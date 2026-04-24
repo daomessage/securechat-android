@@ -121,7 +121,13 @@ fun MainScreen(appViewModel: AppViewModel) {
     Scaffold(
         containerColor = DarkBg,
         bottomBar = {
-            NavigationBar(containerColor = Surface1, tonalElevation = 0.dp) {
+            // design tokens · TabBar 高 56dp + 顶部 border.default
+            // Material 3 NavigationBar 默认 80dp, 必须 Modifier.height(56.dp) 显式覆盖
+            NavigationBar(
+                containerColor = Surface1,
+                tonalElevation = 0.dp,
+                modifier = Modifier.height(56.dp),
+            ) {
                 TabItem.entries.forEach { tab ->
                     val isSelected = activeTab == tab.mainTab
                     val badge = when (tab.mainTab) {
@@ -142,13 +148,13 @@ fun MainScreen(appViewModel: AppViewModel) {
                                 )
                             }
                         },
-                        label = { Text(tab.label, fontSize = 11.sp) },
+                        label = { Text(tab.label, fontSize = TextSize.xs) },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = BlueAccent,
-                            selectedTextColor = BlueAccent,
+                            selectedIconColor = BrandPrimary,
+                            selectedTextColor = BrandPrimary,
                             unselectedIconColor = TextMuted,
                             unselectedTextColor = TextMuted,
-                            indicatorColor = BlueAccent.copy(alpha = 0.1f)
+                            indicatorColor = BrandPrimary.copy(alpha = 0.1f)
                         )
                     )
                 }
