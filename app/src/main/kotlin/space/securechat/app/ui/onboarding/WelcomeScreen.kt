@@ -2,98 +2,100 @@ package space.securechat.app.ui.onboarding
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import space.securechat.app.ui.components.PrimaryButton
+import space.securechat.app.ui.components.SecondaryButton
+import space.securechat.app.ui.theme.*
 import space.securechat.app.viewmodel.AppRoute
 import space.securechat.app.viewmodel.AppViewModel
 import space.securechat.sdk.keys.KeyDerivation
-import space.securechat.app.ui.theme.*
 
 /**
- * WelcomeScreen — 对标 Web: Welcome.tsx
+ * WelcomeScreen — 对齐 Web Welcome.tsx / iOS WelcomeView.swift (B 路线 2026-04-24)
  *
- * 👤 App 路由决策：Register（→ generate_mnemonic）或 Recover（→ recover）
+ * 三端视觉规范 docs/DESIGN_TOKENS.md · docs/UI_PARITY_REPORT.md P0-1
+ * - gradient 标题 (blue → violet → purple) 替代老的 🔒 Logo 盒
+ * - 副标题和 PWA 一致: "零知识端到端加密通讯 · 由你掌控的去中心化即时通讯"
+ * - 主按钮 PrimaryButton / 次按钮 SecondaryButton
+ * - 底部链接占位 (Android 里简化为静态说明, 因为没有 "install" 概念)
  */
 @Composable
 fun WelcomeScreen(appViewModel: AppViewModel) {
+    // 品牌渐变 · blue-400 → violet-400 → purple-400 (对齐 PWA text gradient)
+    val titleBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF60A5FA),    // blue-400
+            Color(0xFFA78BFA),    // violet-400
+            Color(0xFFC084FC),    // purple-400
+        )
+    )
+
     Box(
-        Modifier.fillMaxSize().background(DarkBg),
-        contentAlignment = Alignment.Center
+        Modifier
+            .fillMaxSize()
+            .background(DarkBg),
+        contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(32.dp),
-            modifier = Modifier.padding(40.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.s8),
+            modifier = Modifier.padding(Spacing.s6),
         ) {
-            // Logo 区
-            Box(
-                Modifier
-                    .size(80.dp)
-                    .background(BlueAccent.copy(alpha = 0.15f), RoundedCornerShape(24.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("🔒", fontSize = 36.sp)
-            }
-
+            // 标题区 (无 Logo 盒, 用 gradient 文字传达品牌)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(Spacing.s4),
             ) {
                 Text(
-                    "SecureChat",
-                    color = TextPrimary,
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold
+                    text = "DAO Message",
+                    style = TextStyle(
+                        brush = titleBrush,
+                        fontSize = TextSize.xl4,
+                        fontWeight = FontWeight.Bold,
+                    ),
                 )
                 Text(
-                    "Your keys. Your privacy.\nEnd-to-end encrypted.",
-                    color = TextMuted,
-                    fontSize = 15.sp,
+                    text = "零知识端到端加密通讯 · 由你掌控的去中心化即时通讯",
+                    color = TextMutedLight,
+                    fontSize = TextSize.sm,
                     textAlign = TextAlign.Center,
-                    lineHeight = 22.sp
+                    lineHeight = 20.sp,
                 )
             }
 
+            // 按钮区
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.s3),
             ) {
-                Button(
+                PrimaryButton(
+                    text = "创建新账户",
                     onClick = {
                         val mnemonic = KeyDerivation.newMnemonic()
                         appViewModel.setTempMnemonic(mnemonic)
                         appViewModel.setRoute(AppRoute.GENERATE_MNEMONIC)
                     },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BlueAccent)
-                ) {
-                    Text("Create New Account", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                }
-
-                OutlinedButton(
+                )
+                SecondaryButton(
+                    text = "恢复已有账户",
                     onClick = { appViewModel.setRoute(AppRoute.RECOVER) },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Surface2)
-                ) {
-                    Text("Restore from Mnemonic", fontSize = 16.sp)
-                }
+                )
             }
 
+            // 底部说明 (Android 不需要 PWA 的 "安装到主屏" 链接, 保持空间一致)
             Text(
-                "v1.0.0 · Powered by SecureChat Protocol",
+                text = "v1.0 · 由 DAO MESSAGE 协议驱动",
                 color = TextMuted,
-                fontSize = 12.sp
+                fontSize = TextSize.xs,
             )
         }
     }
