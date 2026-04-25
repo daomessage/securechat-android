@@ -38,10 +38,34 @@ android {
         jvmTarget = "17"
     }
 
+    // Release 签名 · 通过环境变量提供 keystore, 避免泄露
+    // 设置:
+    //   export DAOMESSAGE_KEYSTORE=/path/to/release.jks
+    //   export DAOMESSAGE_KEYSTORE_PASSWORD=xxx
+    //   export DAOMESSAGE_KEY_ALIAS=daomessage
+    //   export DAOMESSAGE_KEY_PASSWORD=xxx
+    // 生成 keystore:
+    //   keytool -genkey -v -keystore release.jks -alias daomessage -keyalg RSA -keysize 4096 -validity 10000
+    signingConfigs {
+        create("release") {
+            val keystoreFile = System.getenv("DAOMESSAGE_KEYSTORE")
+            if (keystoreFile != null && file(keystoreFile).exists()) {
+                storeFile = file(keystoreFile)
+                storePassword = System.getenv("DAOMESSAGE_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("DAOMESSAGE_KEY_ALIAS") ?: "daomessage"
+                keyPassword = System.getenv("DAOMESSAGE_KEY_PASSWORD") ?: ""
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // 仅当 keystore 已配置时启用签名 (本地开发跑 debug build 不受影响)
+            if (System.getenv("DAOMESSAGE_KEYSTORE") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
