@@ -21,6 +21,7 @@ import space.securechat.app.ui.channels.*
 import space.securechat.app.ui.contacts.*
 import space.securechat.app.ui.settings.*
 import space.securechat.app.ui.chat.ChatScreen
+import space.securechat.app.ui.components.NetworkBanner
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import space.securechat.sdk.SecureChatClient
@@ -39,6 +40,8 @@ fun MainScreen(appViewModel: AppViewModel) {
     val activeChannelId by appViewModel.activeChannelId.collectAsStateWithLifecycle()
     val pendingCount by appViewModel.pendingRequestCount.collectAsStateWithLifecycle()
     val unreadCounts by appViewModel.unreadCounts.collectAsStateWithLifecycle()
+    // P2-3: 订阅网络状态, 驱动 NetworkBanner 显示 / 隐藏
+    val networkState by SecureChatClient.getInstance().networkState.collectAsStateWithLifecycle()
 
     // 同步好友（进入 main 后）
     val client = SecureChatClient.getInstance()
@@ -161,12 +164,17 @@ fun MainScreen(appViewModel: AppViewModel) {
             }
         }
     ) { padding ->
-        Box(Modifier.padding(padding)) {
-            when (activeTab) {
-                MainTab.MESSAGES  -> MessagesTab(appViewModel)
-                MainTab.CHANNELS  -> ChannelsTab(appViewModel)
-                MainTab.CONTACTS  -> ContactsTab(appViewModel)
-                MainTab.SETTINGS  -> SettingsTab(appViewModel)
+        Column(Modifier.padding(padding)) {
+            // P2-3 对齐 iOS/PWA: 顶部网络状态横幅
+            NetworkBanner(state = networkState)
+
+            Box(Modifier.weight(1f)) {
+                when (activeTab) {
+                    MainTab.MESSAGES  -> MessagesTab(appViewModel)
+                    MainTab.CHANNELS  -> ChannelsTab(appViewModel)
+                    MainTab.CONTACTS  -> ContactsTab(appViewModel)
+                    MainTab.SETTINGS  -> SettingsTab(appViewModel)
+                }
             }
         }
     }
