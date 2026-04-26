@@ -18,7 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.delay
+import org.webrtc.MediaStream
 import org.webrtc.SurfaceViewRenderer
+import org.webrtc.VideoTrack
 import space.securechat.app.call.CallManager
 import space.securechat.app.ui.theme.*
 
@@ -57,13 +59,18 @@ fun CallScreen(callManager: CallManager) {
     Box(Modifier.fillMaxSize().background(Color.Black)) {
 
         // —— 远端视频（全屏）
-        if (isVideo && remoteStream != null) {
+        // 关键：AndroidView factory 只在创建时跑一次。remoteStream 是异步到达的 StateFlow,
+        // 所以必须把 renderer 引用提到 Compose state, 用 LaunchedEffect(remoteStream) 显式
+        // addSink/removeSink, 否则 onTrack 后视频 track 不会被挂到 SurfaceViewRenderer。
+        if (isVideo) {
+            val remoteRenderer = remember { mutableStateOf<SurfaceViewRenderer?>(null) }
+            VideoSinkBinder(remoteStream, remoteRenderer.value)
             AndroidView(
                 factory = { ctx ->
                     SurfaceViewRenderer(ctx).apply {
                         init(callManager.eglBase?.eglBaseContext, null)
                         setEnableHardwareScaler(true)
-                        remoteStream?.videoTracks?.firstOrNull()?.addSink(this)
+                        remoteRenderer.value = this
                     }
                 },
                 modifier = Modifier.fillMaxSize()
@@ -90,7 +97,9 @@ fun CallScreen(callManager: CallManager) {
         }
 
         // —— 本地小窗（video 通话时右上角）
-        if (isVideo && localStream != null) {
+        if (isVideo) {
+            val localRenderer = remember { mutableStateOf<SurfaceViewRenderer?>(null) }
+            VideoSinkBinder(localStream, localRenderer.value)
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -105,7 +114,7 @@ fun CallScreen(callManager: CallManager) {
                             init(callManager.eglBase?.eglBaseContext, null)
                             setEnableHardwareScaler(true)
                             setMirror(true)
-                            localStream?.videoTracks?.firstOrNull()?.addSink(this)
+                            localRenderer.value = this
                         }
                     },
                     modifier = Modifier.fillMaxSize()
@@ -174,6 +183,31 @@ fun CallScreen(callManager: CallManager) {
                 }
                 else -> {}
             }
+        }
+    }
+}
+
+/**
+ * 把 stream 的第一条 videoTrack 挂到 renderer。
+ * 当 stream 或 renderer 任一变化时,先 remove 旧 sink 再 add 新 sink。
+ * 离开时自动 release renderer 防泄漏。
+ */
+@Composable
+private fun VideoSinkBinder(stream: MediaStream?, renderer: SurfaceViewRenderer?) {
+    DisposableEffect(stream, renderer) {
+        val track: VideoTrack? = stream?.videoTracks?.firstOrNull()
+        if (renderer != null && track != null) {
+            try { track.addSink(renderer) } catch (_: Throwable) {}
+        }
+        onDispose {
+            if (renderer != null && track != null) {
+                try { track.removeSink(renderer) } catch (_: Throwable) {}
+            }
+        }
+    }
+    DisposableEffect(renderer) {
+        onDispose {
+            try { renderer?.release() } catch (_: Throwable) {}
         }
     }
 }

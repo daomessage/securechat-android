@@ -208,41 +208,49 @@ class CallManager private constructor() {
             createPeerConnection()
             attachLocalMedia(info.mode)
 
-            // 应用缓存的 offer SDP（call_offer 可能在 peerConnection 创建前到达）
-            val offerSdp = pendingOfferSdp
-            if (offerSdp != null) {
-                peerConnection?.setRemoteDescription(
-                    SimpleSdpObserver(),
-                    SessionDescription(SessionDescription.Type.OFFER, offerSdp)
-                )
-                pendingOfferSdp = null
-                flushPendingIce()
-            }
-
-            // 对端 offer 应在 handleIncoming 时已 setRemoteDescription，这里直接 createAnswer
             // 显式指定 OfferToReceiveVideo，确保视频来电被叫方协商出视频 track
             val answerConstraints = MediaConstraints().apply {
                 mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
                 mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo",
                     if (info.mode == Mode.VIDEO) "true" else "false"))
             }
-            peerConnection?.createAnswer(object : SimpleSdpObserver() {
-                override fun onCreateSuccess(sdp: SessionDescription?) {
-                    sdp ?: return
-                    peerConnection?.setLocalDescription(SimpleSdpObserver(), sdp)
-                    client.sendSignalFrame(mapOf(
-                        "type"     to "call_answer",
-                        "to"       to info.remoteAlias,
-                        "call_id"  to info.callId,
-                        "sdp"      to sdp.description,
-                        "sdp_type" to "answer",
-                        "crypto_v" to 1,
-                    ))
-                    scope.launch { _state.value = State.CONNECTED }
-                    // flush pending ICE
-                    flushPendingIce()
-                }
-            }, answerConstraints)
+
+            val createAndSendAnswer: () -> Unit = {
+                peerConnection?.createAnswer(object : SimpleSdpObserver() {
+                    override fun onCreateSuccess(sdp: SessionDescription?) {
+                        sdp ?: return
+                        peerConnection?.setLocalDescription(SimpleSdpObserver(), sdp)
+                        client.sendSignalFrame(mapOf(
+                            "type"     to "call_answer",
+                            "to"       to info.remoteAlias,
+                            "call_id"  to info.callId,
+                            "sdp"      to sdp.description,
+                            "sdp_type" to "answer",
+                            "crypto_v" to 1,
+                        ))
+                        scope.launch { _state.value = State.CONNECTED }
+                    }
+                }, answerConstraints)
+            }
+
+            // 应用缓存的 offer SDP（call_offer 可能在 peerConnection 创建前到达）
+            // setRemoteDescription 是异步的：createAnswer 必须等 remote 已 set 才能正确生成
+            // OfferToReceiveVideo 协商。同时 ICE flush 也必须等 remote set 完成。
+            val offerSdp = pendingOfferSdp
+            if (offerSdp != null) {
+                pendingOfferSdp = null
+                peerConnection?.setRemoteDescription(
+                    FlushAfterRemoteDescObserver {
+                        flushPendingIce()
+                        createAndSendAnswer()
+                    },
+                    SessionDescription(SessionDescription.Type.OFFER, offerSdp)
+                )
+            } else {
+                // 兼容路径：handleIncoming 已 setRemoteDescription 的情况
+                createAndSendAnswer()
+                flushPendingIce()
+            }
         }
     }
 
@@ -492,11 +500,11 @@ class CallManager private constructor() {
                 val pc = peerConnection
                 if (pc != null) {
                     // peerConnection 已创建（不常见，但兼容）
+                    // 必须等 setRemoteDescription 完成后再 flush ICE，否则视频 m-line 的候选会被丢
                     pc.setRemoteDescription(
-                        SimpleSdpObserver(),
+                        FlushAfterRemoteDescObserver { flushPendingIce() },
                         SessionDescription(SessionDescription.Type.OFFER, sdpStr)
                     )
-                    flushPendingIce()
                 } else {
                     // 被叫方点接听前 peerConnection 还未创建，缓存 SDP
                     Log.d("CallManager", "call_offer 到达但 peerConnection 未创建，缓存 SDP")
@@ -526,14 +534,18 @@ class CallManager private constructor() {
             "call_answer" -> {
                 val sdpStr = frame["sdp"] as? String
                 if (sdpStr != null) {
+                    // 必须等 setRemoteDescription 完成后再 flush ICE，否则视频 m-line 的候选会被丢
                     peerConnection?.setRemoteDescription(
-                        SimpleSdpObserver(),
+                        FlushAfterRemoteDescObserver {
+                            if (_state.value == State.OUTGOING) {
+                                _state.value = State.CONNECTED
+                            }
+                            flushPendingIce()
+                        },
                         SessionDescription(SessionDescription.Type.ANSWER, sdpStr)
                     )
-                }
-                if (_state.value == State.OUTGOING) {
+                } else if (_state.value == State.OUTGOING) {
                     _state.value = State.CONNECTED
-                    flushPendingIce()
                 }
             }
             "call_reject", "call_hangup" -> {
@@ -585,4 +597,18 @@ open class SimpleSdpObserver : SdpObserver {
     override fun onSetSuccess() {}
     override fun onCreateFailure(p0: String?) {}
     override fun onSetFailure(p0: String?) {}
+}
+
+/**
+ * setRemoteDescription 完成后再执行回调（通常是 flushPendingIce）。
+ *
+ * setRemoteDescription 是异步的，用空 SimpleSdpObserver 后立刻 addIceCandidate
+ * 会在 remote description 还没真正应用时打入候选，部分候选会被丢弃 —
+ * 视频通道因为 m-line 比纯音频多、对 ICE 完整性更敏感，最先出现"音通了视频黑屏"。
+ */
+class FlushAfterRemoteDescObserver(private val onDone: () -> Unit) : SdpObserver {
+    override fun onCreateSuccess(sdp: SessionDescription?) {}
+    override fun onSetSuccess() { onDone() }
+    override fun onCreateFailure(p0: String?) {}
+    override fun onSetFailure(p0: String?) { Log.w("CallManager", "setRemoteDescription failed: $p0") }
 }
