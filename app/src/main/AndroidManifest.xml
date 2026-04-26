@@ -9,6 +9,18 @@
     <!-- Push Notifications (API 33+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- 后台保活 (Q3 修复:Android 切到后台无法收消息/视频) -->
+    <!-- ForegroundService:WS 长连接持锁,Doze/Cached 状态下不被 freeze -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- dataSync 类型:消息同步用 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- phoneCall 类型:来电时启动,系统优先级最高 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <!-- WAKE_LOCK:Doze 下处理 FCM 唤醒时短暂持锁拉离线消息 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- 电池白名单引导:跳系统设置请求免电池优化 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- Media & Voice -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -61,6 +73,19 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT"/>
             </intent-filter>
         </service>
+
+        <!-- 消息同步前台服务:登录后启动,持有 WS 长连接 -->
+        <!-- foregroundServiceType=dataSync 是 Doze 模式下保持连接的关键 -->
+        <service
+            android:name=".service.MessagingForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"/>
+
+        <!-- 来电前台服务:FCM 唤起来电时启动,phoneCall 类型享受系统最高优先级 -->
+        <service
+            android:name=".service.CallForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall"/>
 
         <!-- FileProvider 用于"导出聊天" 分享 -->
         <provider

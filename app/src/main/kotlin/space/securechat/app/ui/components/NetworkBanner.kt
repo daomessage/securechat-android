@@ -77,7 +77,14 @@ fun NetworkBanner(state: NetworkState) {
             )
             state is NetworkState.Kicked -> BannerContent(
                 bg = Danger,
-                text = "已在其他设备登录",
+                // 按 reason 区分文案,只有 new_device_login 才是真"多端登录"
+                text = when (state.reason) {
+                    "new_device_login" -> "已在其他设备登录"
+                    "jwt_revoked"      -> "登录凭证已失效"
+                    "server_shutdown"  -> "服务端正在重启"
+                    "network_reset"    -> "网络已重置"
+                    else               -> "连接已断开"
+                },
                 showSpinner = false,
             )
             else -> {}

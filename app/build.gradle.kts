@@ -101,6 +101,7 @@ dependencies {
     // Lifecycle
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
+    implementation(libs.lifecycle.process)
 
     // 图片
     implementation(libs.coil.compose)

@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.webrtc.*
+import kotlinx.coroutines.flow.combine
+import space.securechat.app.service.CallForegroundService
 import space.securechat.sdk.SecureChatClient
 import java.util.UUID
 
@@ -54,6 +56,7 @@ class CallManager private constructor() {
 
     private var unsubSignal: (() -> Unit)? = null
     private var noAnswerJob: Job? = null
+    private var fgServiceJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val client get() = SecureChatClient.getInstance()
 
@@ -160,11 +163,35 @@ class CallManager private constructor() {
         if (unsubSignal != null) return
         val listener: (Map<String, Any?>) -> Unit = { frame -> handleIncoming(frame) }
         unsubSignal = client.on(SecureChatClient.EVENT_SIGNAL, listener)
+
+        // Q3-D: 把 (state, info) 流接到 CallForegroundService
+        // INCOMING(被叫,且 info 已就绪) → showIncoming
+        // 其他状态 → dismiss (含 IDLE / OUTGOING / CONNECTED / ENDED)
+        // OUTGOING 不上前台通知:UI 已显示 CallScreen,系统通知没意义
+        fgServiceJob?.cancel()
+        fgServiceJob = scope.launch {
+            _state.combine(_info) { s, i -> s to i }.collect { (s, i) ->
+                val ctx = appContext ?: return@collect
+                if (s == State.INCOMING && i != null && !i.isCaller) {
+                    CallForegroundService.showIncoming(
+                        ctx,
+                        callId = i.callId,
+                        from = i.remoteAlias,
+                        mode = i.mode.name.lowercase()
+                    )
+                } else {
+                    CallForegroundService.dismiss(ctx)
+                }
+            }
+        }
     }
 
     fun stop() {
         unsubSignal?.invoke()
         unsubSignal = null
+        fgServiceJob?.cancel()
+        fgServiceJob = null
+        appContext?.let { CallForegroundService.dismiss(it) }
         teardownPeer()
         _state.value = State.IDLE
         _info.value = null

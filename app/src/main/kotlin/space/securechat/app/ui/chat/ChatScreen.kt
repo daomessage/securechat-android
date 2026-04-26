@@ -28,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import space.securechat.sdk.SecureChatClient
@@ -80,6 +82,7 @@ fun ChatScreen(
     var isLoadingMore by remember { mutableStateOf(false) }
     var hasMoreHistory by remember { mutableStateOf(true) }
     val pageSize = 30
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     suspend fun loadTrustAndCode() {
         if (friendAliasId.isBlank()) return
@@ -114,10 +117,19 @@ fun ChatScreen(
     DisposableEffect(convId) {
         val msgListener: (StoredMessage) -> Unit = { msg ->
             if (msg.conversationId == convId) {
-                messages = messages + msg
+                // 去重:同一 id 已存在则替换(SDK 可能因乐观写入 + ack 回插发出两次同 id 事件),
+                // 否则追加。避免 LazyColumn key 重复导致的 IllegalArgumentException 崩溃。
+                messages = if (messages.any { it.id == msg.id }) {
+                    messages.map { if (it.id == msg.id) msg else it }
+                } else {
+                    messages + msg
+                }
                 scope.launch { listState.animateScrollToItem(messages.size - 1) }
-                // 发送已读回执
-                if (friendAliasId.isNotEmpty()) {
+                // 发送已读回执:仅当 (1) 是对方发来的消息 (2) Activity 处于 RESUMED(用户真在看)
+                // 否则会出现"自己发出去的消息立刻变已读"或"在后台消息却变已读"
+                val isInForeground = lifecycleOwner.lifecycle.currentState
+                    .isAtLeast(Lifecycle.State.RESUMED)
+                if (!msg.isMe && isInForeground && friendAliasId.isNotEmpty()) {
                     client.markAsRead(convId, msg.seq ?: 0L, friendAliasId)
                 }
             }
@@ -445,7 +457,9 @@ fun ChatScreen(
                     scope.launch {
                         try {
                             client.sendMessage(convId, friendAliasId, text, replyId)
-                            messages = client.getHistory(convId)
+                            // P2-H: limit 必须 ≥ 当前消息数 + 1,否则发完新消息后
+                            // getHistory 用默认 limit 截断,长会话会丢历史。
+                            messages = client.getHistory(convId, limit = pageSize.coerceAtLeast(messages.size + 1))
                             listState.animateScrollToItem(messages.size - 1)
                         } catch (_: Exception) {}
                     }

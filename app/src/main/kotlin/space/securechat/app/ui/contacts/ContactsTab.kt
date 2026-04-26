@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
 import space.securechat.sdk.SecureChatClient
 import space.securechat.sdk.contacts.Friend
@@ -68,7 +69,19 @@ fun ContactsTab(appViewModel: AppViewModel) {
         } catch (_: Exception) {}
     }
 
-    LaunchedEffect(Unit) { scope.launch { reload() } }
+    // P0-C(2026-04-26): 用 EVENT_CONTACTS_CHANGE 事件替代 10s 轮询。
+    // 服务端 friends/handler.go 在 friend_request / friend_accepted 时
+    // PublishCore 到 NATS,gateway 转成 WS 帧 → SDK 分发 → 这里收到事件立刻 reload。
+    // 之前轮询是为了兜住事件链断点,现在事件链补齐,删掉轮询。
+    LaunchedEffect(Unit) {
+        scope.launch { reload() }
+        val unsub = client.on<(String, Map<String, Any?>) -> Unit>(SecureChatClient.EVENT_CONTACTS_CHANGE) { _, _ ->
+            scope.launch { reload() }
+        }
+        // LaunchedEffect 退出时反注册
+        try { awaitCancellation() }
+        finally { unsub() }
+    }
 
     var showMyQr by remember { mutableStateOf(false) }
     val userInfo by appViewModel.userInfo.collectAsState()
