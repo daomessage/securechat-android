@@ -459,6 +459,26 @@ class CallManager private constructor() {
                     // 被叫方点接听前 peerConnection 还未创建，缓存 SDP
                     Log.d("CallManager", "call_offer 到达但 peerConnection 未创建，缓存 SDP")
                     pendingOfferSdp = sdpStr
+
+                    // PWA SDK 1.0.20+ 直接发 call_offer，不再单独发 call_invite。
+                    // 如果当前还在 IDLE，必须把状态切到 INCOMING 才会弹来电界面。
+                    if (_state.value == State.IDLE) {
+                        // 从 SDP 嗅探是否含 video m-line，决定模式
+                        val mode = if (sdpStr.contains("\nm=video ") || sdpStr.startsWith("m=video ")) {
+                            Mode.VIDEO
+                        } else {
+                            Mode.AUDIO
+                        }
+                        _info.value = CallInfo(callId, from, isCaller = false, mode = mode)
+                        _state.value = State.INCOMING
+                    } else if (_state.value != State.INCOMING) {
+                        // 非 IDLE 也非 INCOMING（比如正在通话中）→ 拒绝
+                        client.sendSignalFrame(mapOf(
+                            "type" to "call_reject", "to" to from,
+                            "call_id" to callId, "crypto_v" to 1
+                        ))
+                    }
+                    // 已经是 INCOMING（call_invite 先到 + call_offer 紧随）→ 仅缓存 SDP
                 }
             }
             "call_answer" -> {
