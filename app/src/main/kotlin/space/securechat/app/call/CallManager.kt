@@ -98,6 +98,9 @@ class CallManager private constructor() {
     // 缓存对端传入的 ICE 候选（若 remote description 还没设就先缓存）
     private val pendingIce = mutableListOf<IceCandidate>()
 
+    // 缓存 call_offer SDP（被叫方点"接听"前 peerConnection 尚未创建，需先缓存）
+    private var pendingOfferSdp: String? = null
+
     fun init(context: Context) {
         if (peerConnectionFactory != null) return
         appContext = context.applicationContext
@@ -169,6 +172,18 @@ class CallManager private constructor() {
         scope.launch {
             createPeerConnection()
             attachLocalMedia(info.mode)
+
+            // 应用缓存的 offer SDP（call_offer 可能在 peerConnection 创建前到达）
+            val offerSdp = pendingOfferSdp
+            if (offerSdp != null) {
+                peerConnection?.setRemoteDescription(
+                    SimpleSdpObserver(),
+                    SessionDescription(SessionDescription.Type.OFFER, offerSdp)
+                )
+                pendingOfferSdp = null
+                flushPendingIce()
+            }
+
             // 对端 offer 应在 handleIncoming 时已 setRemoteDescription，这里直接 createAnswer
             // 显式指定 OfferToReceiveVideo，确保视频来电被叫方协商出视频 track
             val answerConstraints = MediaConstraints().apply {
@@ -255,21 +270,53 @@ class CallManager private constructor() {
             override fun onIceCandidate(candidate: IceCandidate?) {
                 candidate ?: return
                 val info = _info.value ?: return
+                // PWA handleICE 期望 candidate 字段是 RTCIceCandidateInit 对象
+                // { candidate: string, sdpMid: string|null, sdpMLineIndex: number }
+                // 与 PWA 自己发的 e.candidate.toJSON() 格式一致
                 client.sendSignalFrame(mapOf(
-                    "type"       to "call_ice",
-                    "to"         to info.remoteAlias,
-                    "call_id"    to info.callId,
-                    "candidate"  to candidate.sdp,
-                    "sdp_mid"    to candidate.sdpMid,
-                    "sdp_mline"  to candidate.sdpMLineIndex,
-                    "crypto_v"   to 1,
+                    "type"     to "call_ice",
+                    "to"       to info.remoteAlias,
+                    "call_id"  to info.callId,
+                    "candidate" to mapOf(
+                        "candidate"     to candidate.sdp,
+                        "sdpMid"        to candidate.sdpMid,
+                        "sdpMLineIndex" to candidate.sdpMLineIndex,
+                    ),
+                    "crypto_v" to 1,
                 ))
             }
             override fun onAddStream(stream: MediaStream?) {
-                _remoteStream.value = stream
+                // Unified Plan 下 onAddStream 不可靠，由 onTrack 处理
             }
-            override fun onRemoveStream(stream: MediaStream?) {
-                _remoteStream.value = null
+            override fun onRemoveStream(stream: MediaStream?) {}
+            override fun onTrack(transceiver: RtpTransceiver?) {
+                // Unified Plan：每个 track 独立触发，重建远端 MediaStream
+                transceiver ?: return
+                val track = transceiver.receiver?.track() ?: return
+                scope.launch(Dispatchers.Main) {
+                    val factory = peerConnectionFactory ?: return@launch
+                    val existing = _remoteStream.value
+                    val stream = if (existing != null) existing
+                    else {
+                        val s = factory.createLocalMediaStream("remote0")
+                        _remoteStream.value = s
+                        s
+                    }
+                    when (track) {
+                        is AudioTrack -> {
+                            if (stream.audioTracks.none { it.id() == track.id() })
+                                stream.addTrack(track)
+                        }
+                        is VideoTrack -> {
+                            if (stream.videoTracks.none { it.id() == track.id() })
+                                stream.addTrack(track)
+                        }
+                    }
+                    // 触发 StateFlow 更新让 UI 重新收到 stream
+                    _remoteStream.value = stream
+                    Log.d("CallManager", "onTrack: kind=${track.kind()} remoteStream " +
+                        "audio=${stream.audioTracks.size} video=${stream.videoTracks.size}")
+                }
             }
             override fun onConnectionChange(newState: PeerConnection.PeerConnectionState?) {
                 Log.d("CallManager", "PC state: $newState")
@@ -286,7 +333,6 @@ class CallManager private constructor() {
             override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
             override fun onDataChannel(dc: DataChannel?) {}
             override fun onRenegotiationNeeded() {}
-            override fun onTrack(transceiver: RtpTransceiver?) {}
         })
     }
 
@@ -373,6 +419,7 @@ class CallManager private constructor() {
         _micMuted.value = false
         _cameraMuted.value = false
         pendingIce.clear()
+        pendingOfferSdp = null
     }
 
     private fun flushPendingIce() {
@@ -400,10 +447,19 @@ class CallManager private constructor() {
             }
             "call_offer" -> {
                 val sdpStr = frame["sdp"] as? String ?: return
-                peerConnection?.setRemoteDescription(
-                    SimpleSdpObserver(),
-                    SessionDescription(SessionDescription.Type.OFFER, sdpStr)
-                )
+                val pc = peerConnection
+                if (pc != null) {
+                    // peerConnection 已创建（不常见，但兼容）
+                    pc.setRemoteDescription(
+                        SimpleSdpObserver(),
+                        SessionDescription(SessionDescription.Type.OFFER, sdpStr)
+                    )
+                    flushPendingIce()
+                } else {
+                    // 被叫方点接听前 peerConnection 还未创建，缓存 SDP
+                    Log.d("CallManager", "call_offer 到达但 peerConnection 未创建，缓存 SDP")
+                    pendingOfferSdp = sdpStr
+                }
             }
             "call_answer" -> {
                 val sdpStr = frame["sdp"] as? String
@@ -425,9 +481,22 @@ class CallManager private constructor() {
                 _state.value = State.IDLE
             }
             "call_ice" -> {
-                val sdp = frame["candidate"] as? String ?: return
-                val sdpMid = frame["sdp_mid"] as? String ?: ""
-                val sdpMLine = (frame["sdp_mline"] as? Number)?.toInt() ?: 0
+                // PWA 发来格式: candidate = { candidate, sdpMid, sdpMLineIndex }
+                // 兼容旧格式: candidate = 字符串 + sdp_mid + sdp_mline
+                @Suppress("UNCHECKED_CAST")
+                val candObj = frame["candidate"]
+                val sdp: String
+                val sdpMid: String
+                val sdpMLine: Int
+                if (candObj is Map<*, *>) {
+                    sdp     = (candObj["candidate"] as? String) ?: return
+                    sdpMid  = (candObj["sdpMid"] as? String) ?: ""
+                    sdpMLine = (candObj["sdpMLineIndex"] as? Number)?.toInt() ?: 0
+                } else {
+                    sdp     = (candObj as? String) ?: return
+                    sdpMid  = frame["sdp_mid"] as? String ?: ""
+                    sdpMLine = (frame["sdp_mline"] as? Number)?.toInt() ?: 0
+                }
                 val c = IceCandidate(sdpMid, sdpMLine, sdp)
                 val pc = peerConnection
                 if (pc != null && pc.remoteDescription != null) {
