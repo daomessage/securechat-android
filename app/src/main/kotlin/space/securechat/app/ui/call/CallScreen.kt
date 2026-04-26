@@ -1,5 +1,6 @@
 package space.securechat.app.ui.call
 
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -260,12 +261,24 @@ private fun VideoSinkBinder(stream: MediaStream?, renderer: SurfaceViewRenderer?
 
 /**
  * 远端视频:直接绑 VideoTrack,绕开 MediaStream 引用相等不触发的问题。
+ *
+ * 诊断日志(VideoBind 标签):用户报"通话通了但 Android 看不到 PWA 的视频",
+ * 但 PC 层日志显示 onTrack: kind=video 已到达 → 嫌疑在 Compose 层 addSink 没真正调用。
+ * 这里把每次 effect 的 (track, renderer) 状态打出来,即可定位:
+ *  - addSink 调用了 → bug 在更下层(SurfaceViewRenderer 没贴在屏幕上 / GL context 错)
+ *  - addSink 没调用 → effect 顺序问题(renderer 还是 null 时 effect 跑过没重跑)
  */
 @Composable
 private fun VideoTrackBinder(track: VideoTrack?, renderer: SurfaceViewRenderer?) {
     DisposableEffect(track, renderer) {
+        Log.d("VideoBind", "remote effect: track=${track != null} renderer=${renderer != null}")
         if (renderer != null && track != null) {
-            try { track.addSink(renderer) } catch (_: Throwable) {}
+            try {
+                track.addSink(renderer)
+                Log.d("VideoBind", "remote addSink OK trackId=${track.id()}")
+            } catch (e: Throwable) {
+                Log.e("VideoBind", "remote addSink FAILED", e)
+            }
         }
         onDispose {
             if (renderer != null && track != null) {
