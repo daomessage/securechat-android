@@ -80,12 +80,12 @@ fun ContactsTab(appViewModel: AppViewModel) {
             scope.launch {
                 try {
                     client.contacts.sendFriendRequest(alias)
-                    successMsg = "Friend request sent to @$alias"
+                    successMsg = "已向 @$alias 发送好友请求"
                     reload()
-                } catch (e: Exception) { errorMsg = e.message ?: "Failed" }
+                } catch (e: Exception) { errorMsg = e.message ?: "失败" }
             }
         } else {
-            errorMsg = "Invalid QR code"
+            errorMsg = "无效的二维码"
         }
     }
 
@@ -96,20 +96,20 @@ fun ContactsTab(appViewModel: AppViewModel) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Contacts",
+                "联系人",
                 color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = { qrLauncher.launch() }) {
-                Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan QR", tint = BlueAccent)
+                Icon(Icons.Default.QrCodeScanner, contentDescription = "扫描二维码", tint = BlueAccent)
             }
             IconButton(onClick = { showMyQr = true }) {
-                Icon(Icons.Default.QrCode2, contentDescription = "My QR", tint = BlueAccent)
+                Icon(Icons.Default.QrCode2, contentDescription = "我的二维码", tint = BlueAccent)
             }
         }
 
         // 子 Tab — Friends / Requests / Add
-        val tabs = listOf("Friends", "Requests", "Add")
+        val tabs = listOf("好友", "请求", "添加")
         TabRow(
             selectedTabIndex = selectedSubTab,
             containerColor = DarkBg,
@@ -161,11 +161,11 @@ fun ContactsTab(appViewModel: AppViewModel) {
                     scope.launch {
                         try {
                             client.contacts.acceptFriendRequest(friendshipId)
-                            successMsg = "Friend request accepted"
+                            successMsg = "已接受好友请求"
                             // 成功后再 reload 一次拿 conv_id 等服务端字段
                             reload()
                         } catch (e: Exception) {
-                            errorMsg = e.message ?: "Accept failed"
+                            errorMsg = e.message ?: "接受失败"
                             // 失败则回滚:重新 reload 拿回真实状态
                             reload()
                         }
@@ -183,7 +183,7 @@ fun ContactsTab(appViewModel: AppViewModel) {
                     isSearching = true; errorMsg = null; searchResult = null; successMsg = null
                     scope.launch {
                         try { searchResult = client.contacts.lookupUser(searchQuery.trim()) }
-                        catch (e: Exception) { errorMsg = "User not found" }
+                        catch (e: Exception) { errorMsg = "找不到该用户" }
                         finally { isSearching = false }
                     }
                 },
@@ -191,7 +191,7 @@ fun ContactsTab(appViewModel: AppViewModel) {
                     scope.launch {
                         try {
                             client.contacts.sendFriendRequest(aliasId)
-                            successMsg = "Friend request sent!"
+                            successMsg = "好友请求已发送！"
                             searchResult = null
                             reload()
                         } catch (e: Exception) { errorMsg = e.message }
@@ -208,7 +208,7 @@ fun ContactsTab(appViewModel: AppViewModel) {
             containerColor = Surface1,
             shape = RoundedCornerShape(16.dp),
             title = {
-                Text("My QR Code", color = TextPrimary, fontWeight = FontWeight.Bold)
+                Text("我的二维码", color = TextPrimary, fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(
@@ -220,13 +220,13 @@ fun ContactsTab(appViewModel: AppViewModel) {
                     ) {
                         QrCodeImage(content = payload, sizeDp = 220)
                     }
-                    Text(userInfo.nickname.ifEmpty { "Me" }, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    Text(userInfo.nickname.ifEmpty { "我" }, color = TextPrimary, fontWeight = FontWeight.SemiBold)
                     Text("@${userInfo.aliasId}", color = TextMuted, fontSize = 12.sp)
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showMyQr = false }) {
-                    Text("Close", color = BlueAccent)
+                    Text("关闭", color = BlueAccent)
                 }
             }
         )
@@ -239,8 +239,8 @@ private fun FriendsList(friends: List<Friend>, onOpenChat: (String) -> Unit) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("👥", fontSize = 40.sp)
-                Text("No friends yet", color = TextMuted, fontSize = 16.sp)
-                Text("Use the Add tab to find contacts", color = TextMuted, fontSize = 13.sp)
+                Text("还没有好友", color = TextMuted, fontSize = 16.sp)
+                Text("到「添加」标签页查找联系人", color = TextMuted, fontSize = 13.sp)
             }
         }
     } else {
@@ -288,7 +288,7 @@ private fun AddFriendPanel(
             OutlinedTextField(
                 value = query,
                 onValueChange = onQueryChange,
-                placeholder = { Text("Search by Alias ID...", color = TextMuted) },
+                placeholder = { Text("按 Alias ID 搜索...", color = TextMuted) },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
                     focusedBorderColor = BlueAccent, unfocusedBorderColor = Surface2,
@@ -307,7 +307,7 @@ private fun AddFriendPanel(
                 modifier = Modifier.height(56.dp)
             ) {
                 if (isSearching) CircularProgressIndicator(color = TextPrimary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                else Icon(Icons.Default.Search, contentDescription = "Search", tint = TextPrimary)
+                else Icon(Icons.Default.Search, contentDescription = "搜索", tint = TextPrimary)
             }
         }
 
@@ -339,7 +339,7 @@ private fun AddFriendPanel(
                         onClick = { onSendRequest(user.aliasId) },
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = BlueAccent),
-                    ) { Text("Add") }
+                    ) { Text("添加") }
                 }
             }
         }
@@ -356,7 +356,7 @@ private fun RequestsList(
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("📬", fontSize = 40.sp)
-                Text("No pending requests", color = TextMuted, fontSize = 16.sp)
+                Text("没有待处理的请求", color = TextMuted, fontSize = 16.sp)
             }
         }
         return
@@ -365,7 +365,7 @@ private fun RequestsList(
         if (received.isNotEmpty()) {
             item {
                 Text(
-                    "Received (${received.size})",
+                    "收到的请求 (${received.size})",
                     color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
@@ -377,7 +377,7 @@ private fun RequestsList(
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = BlueAccent),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                    ) { Text("Accept", fontSize = 13.sp) }
+                    ) { Text("接受", fontSize = 13.sp) }
                 })
                 Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 82.dp))
             }
@@ -385,14 +385,14 @@ private fun RequestsList(
         if (sent.isNotEmpty()) {
             item {
                 Text(
-                    "Sent (${sent.size})",
+                    "已发送 (${sent.size})",
                     color = TextMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
             }
             items(sent, key = { it.friendshipId }) { req ->
                 RequestRow(req, action = {
-                    Text("Pending", color = TextMuted, fontSize = 13.sp)
+                    Text("等待中", color = TextMuted, fontSize = 13.sp)
                 })
                 Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 82.dp))
             }

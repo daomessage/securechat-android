@@ -49,15 +49,15 @@ fun MessagesTab(appViewModel: AppViewModel) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Messages", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("消息", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         }
 
         if (friends.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("💬", fontSize = 40.sp)
-                    Text("No conversations yet", color = TextMuted, fontSize = 16.sp)
-                    Text("Add friends to start chatting", color = TextMuted, fontSize = 13.sp)
+                    Text("还没有会话", color = TextMuted, fontSize = 16.sp)
+                    Text("添加好友开始聊天", color = TextMuted, fontSize = 13.sp)
                 }
             }
         } else {
@@ -83,10 +83,10 @@ fun MessagesTab(appViewModel: AppViewModel) {
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
             containerColor = Surface1,
-            title = { Text("Delete Chat", color = TextPrimary) },
+            title = { Text("删除会话", color = TextPrimary) },
             text = {
                 Text(
-                    "Delete all messages with ${target.nickname}? This cannot be undone.",
+                    "删除与 ${target.nickname} 的全部消息？此操作不可撤销。",
                     color = TextMuted, fontSize = 14.sp
                 )
             },
@@ -103,10 +103,10 @@ fun MessagesTab(appViewModel: AppViewModel) {
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Danger)
-                ) { Text("Delete") }
+                ) { Text("删除") }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("Cancel", color = TextMuted) }
+                TextButton(onClick = { deleteTarget = null }) { Text("取消", color = TextMuted) }
             }
         )
     }

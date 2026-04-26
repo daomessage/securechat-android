@@ -37,10 +37,10 @@ fun GenerateMnemonicScreen(appViewModel: AppViewModel) {
     ) {
         // 顶部 back
         TextButton(onClick = { appViewModel.setRoute(AppRoute.WELCOME) }) {
-            Text("← Back", color = TextMuted)
+            Text("← 返回", color = TextMuted)
         }
 
-        Text("Your Recovery Phrase", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text("你的助记词", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
 
         // 警告
         Card(
@@ -50,8 +50,8 @@ fun GenerateMnemonicScreen(appViewModel: AppViewModel) {
             Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("⚠️", fontSize = 14.sp)
                 Text(
-                    "Write down these 12 words in order. Never share them with anyone. " +
-                    "They are the only way to recover your account.",
+                    "请按顺序写下这 12 个单词，并妥善保管。切勿告诉任何人。" +
+                    "它是恢复你账户的唯一凭证。",
                     color = Danger,
                     fontSize = 13.sp,
                     lineHeight = 20.sp
@@ -102,7 +102,7 @@ fun GenerateMnemonicScreen(appViewModel: AppViewModel) {
                 onCheckedChange = { checkedBackup = it },
                 colors = CheckboxDefaults.colors(checkedColor = BlueAccent)
             )
-            Text("I've safely written down my recovery phrase", color = TextMuted, fontSize = 14.sp)
+            Text("我已安全地记下了助记词", color = TextMuted, fontSize = 14.sp)
         }
 
         Button(
@@ -112,7 +112,7 @@ fun GenerateMnemonicScreen(appViewModel: AppViewModel) {
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = BlueAccent)
         ) {
-            Text("Continue", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text("继续", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }

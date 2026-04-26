@@ -47,7 +47,7 @@ fun RecoverScreen(appViewModel: AppViewModel) {
     fun restore() {
         val mnemonic = input.trim().lowercase()
         if (!KeyDerivation.validateMnemonic(mnemonic)) {
-            errorMsg = "Invalid mnemonic. Please check your 12 words."
+            errorMsg = "助记词无效，请检查你的 12 个单词。"
             return
         }
         isLoading = true
@@ -58,7 +58,7 @@ fun RecoverScreen(appViewModel: AppViewModel) {
                 val aliasId = client.auth.loginWithMnemonic(mnemonic)
 
                 // 从 SDK 读已持久化的身份(含服务端已存的 nickname)
-                val (_, nickname) = client.auth.restoreSession() ?: (aliasId to "Recovered User")
+                val (_, nickname) = client.auth.restoreSession() ?: (aliasId to "已恢复用户")
 
                 // 👤 App:更新全局状态
                 appViewModel.setUserInfo(aliasId, nickname)
@@ -72,7 +72,7 @@ fun RecoverScreen(appViewModel: AppViewModel) {
 
                 appViewModel.setRoute(AppRoute.MAIN)
             } catch (e: Exception) {
-                errorMsg = "Recovery failed: ${e.message}"
+                errorMsg = "恢复失败：${e.message}"
             } finally {
                 isLoading = false
             }
@@ -84,13 +84,13 @@ fun RecoverScreen(appViewModel: AppViewModel) {
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         TextButton(onClick = { appViewModel.setRoute(AppRoute.WELCOME) }) {
-            Text("← Back", color = TextMuted)
+            Text("← 返回", color = TextMuted)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Restore Account", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("恢复账户", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text(
-                "Enter your 12-word recovery phrase, separated by spaces.",
+                "请输入你的 12 个助记词，单词之间以空格分隔。",
                 color = TextMuted, fontSize = 14.sp, lineHeight = 20.sp
             )
         }
@@ -98,8 +98,8 @@ fun RecoverScreen(appViewModel: AppViewModel) {
         OutlinedTextField(
             value = input,
             onValueChange = { input = it },
-            label = { Text("Recovery Phrase", color = TextMuted) },
-            placeholder = { Text("word1 word2 word3 ... word12", color = TextMuted) },
+            label = { Text("助记词", color = TextMuted) },
+            placeholder = { Text("单词1 单词2 单词3 … 单词12", color = TextMuted) },
             colors = OutlinedTextFieldDefaults.colors(
                 focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
                 focusedBorderColor = BlueAccent, unfocusedBorderColor = Surface2,
@@ -120,7 +120,7 @@ fun RecoverScreen(appViewModel: AppViewModel) {
         val wordCount = input.trim().split("\\s+".toRegex()).count { it.isNotEmpty() }
         if (input.isNotBlank()) {
             Text(
-                "$wordCount / 12 words",
+                "已输入 $wordCount / 12 个单词",
                 color = if (wordCount == 12) Success else TextMuted,
                 fontSize = 13.sp
             )
@@ -138,7 +138,7 @@ fun RecoverScreen(appViewModel: AppViewModel) {
             if (isLoading) {
                 CircularProgressIndicator(color = TextPrimary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
             } else {
-                Text("Restore Account", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text("恢复账户", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }

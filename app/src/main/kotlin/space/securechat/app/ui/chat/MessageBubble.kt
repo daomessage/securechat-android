@@ -78,11 +78,11 @@ fun MessageBubble(
                     Box(Modifier.width(2.dp).height(28.dp).background(BlueAccent, RoundedCornerShape(1.dp)))
                     Column {
                         Text(
-                            replyPreview?.let { if (it.isMe) "You" else "Reply" } ?: "Reply",
+                            replyPreview?.let { if (it.isMe) "你" else "回复" } ?: "回复",
                             color = BlueAccent, fontSize = 10.sp, fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            replyPreview?.text?.take(60) ?: "Original message",
+                            replyPreview?.text?.take(60) ?: "原始消息",
                             color = TextMuted, fontSize = 11.sp,
                             maxLines = 1
                         )
@@ -117,8 +117,8 @@ fun MessageBubble(
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("📎", fontSize = 18.sp)
                             Column {
-                                Text(msg.caption ?: "File", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                Text("Tap to download", color = TextMuted, fontSize = 11.sp)
+                                Text(msg.caption ?: "文件", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                Text("点击下载", color = TextMuted, fontSize = 11.sp)
                             }
                         }
                     }
@@ -133,11 +133,11 @@ fun MessageBubble(
                         // 未知消息类型 — 协议降级提示（§4.2 / §11）
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
-                                "Unsupported message type: ${msg.msgType}",
+                                "暂不支持的消息类型：${msg.msgType}",
                                 color = TextMuted, fontSize = 13.sp
                             )
                             Text(
-                                "Please update the app to view this message.",
+                                "请更新应用以查看此消息。",
                                 color = BlueAccent, fontSize = 11.sp
                             )
                         }
@@ -239,14 +239,21 @@ private fun VoiceMessagePlayer(msg: StoredMessage) {
             contentAlignment = Alignment.Center) {
             when {
                 isLoading -> CircularProgressIndicator(color = TextPrimary, modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                isPlaying -> Icon(Icons.Default.Stop, contentDescription = "Stop", tint = TextPrimary, modifier = Modifier.size(16.dp))
-                else -> Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = TextPrimary, modifier = Modifier.size(16.dp))
+                isPlaying -> Icon(Icons.Default.Stop, contentDescription = "停止", tint = TextPrimary, modifier = Modifier.size(16.dp))
+                else -> Icon(Icons.Default.PlayArrow, contentDescription = "播放", tint = TextPrimary, modifier = Modifier.size(16.dp))
             }
         }
-        val durText = msg.caption?.toLongOrNull()?.let {
-            val s = (it / 1000).toInt()
-            "${s}″"
-        } ?: "Voice"
+        // SDK 序列化 voice 消息为 JSON: {"type":"voice","key":"...","durationMs":N}
+        // 解析 msg.text 获取时长，兼容旧格式 "[voice]key|durationMs"
+        val durText = try {
+            val json = org.json.JSONObject(msg.text ?: "")
+            val ms = json.optLong("durationMs", -1L)
+            if (ms >= 0) "${(ms / 1000).toInt()}″" else null
+        } catch (_: Exception) {
+            // 旧格式兜底：[voice]key|durationMs
+            msg.text?.removePrefix("[voice]")?.split("|")?.getOrNull(1)
+                ?.toLongOrNull()?.let { "${(it / 1000).toInt()}″" }
+        } ?: "语音"
         Text(durText, color = TextPrimary, fontSize = 14.sp)
         // 简易波形占位（静态）
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -325,7 +332,7 @@ private fun ImageMessageBubble(msg: StoredMessage) {
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text("🖨", fontSize = 24.sp)
-                Text("Image unavailable", color = TextMuted, fontSize = 12.sp)
+                Text("图片无法显示", color = TextMuted, fontSize = 12.sp)
             }
             cachedFile != null -> coil.compose.AsyncImage(
                 model = cachedFile!!,

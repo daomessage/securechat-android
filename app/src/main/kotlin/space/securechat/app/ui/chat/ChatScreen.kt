@@ -221,7 +221,7 @@ fun ChatScreen(
                 Modifier.fillMaxWidth().background(Warning.copy(alpha = 0.15f)).padding(8.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("⚠ Reconnecting...", color = Warning, fontSize = 12.sp)
+                Text("⚠ 重新连接中...", color = Warning, fontSize = 12.sp)
             }
         }
 
@@ -232,7 +232,7 @@ fun ChatScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = TextPrimary)
             }
             Box(
                 Modifier.size(40.dp).clip(CircleShape).background(BlueAccent.copy(alpha = 0.2f)),
@@ -244,9 +244,9 @@ fun ChatScreen(
                 )
             }
             Column(Modifier.weight(1f)) {
-                Text(friendNickname.ifEmpty { "Loading..." }, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                Text(friendNickname.ifEmpty { "加载中..." }, color = TextPrimary, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (isTyping) "typing..." else "🔒 End-to-end encrypted",
+                    if (isTyping) "正在输入..." else "🔒 端到端加密",
                     color = if (isTyping) Success else TextMuted,
                     fontSize = 12.sp
                 )
@@ -256,19 +256,19 @@ fun ChatScreen(
             IconButton(onClick = {
                 if (friendAliasId.isNotBlank()) callMgr.call(friendAliasId, space.securechat.app.call.CallManager.Mode.AUDIO)
             }) {
-                Icon(Icons.Default.Phone, contentDescription = "Audio call", tint = TextMuted, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Phone, contentDescription = "语音通话", tint = TextMuted, modifier = Modifier.size(20.dp))
             }
             IconButton(onClick = {
                 if (friendAliasId.isNotBlank()) callMgr.call(friendAliasId, space.securechat.app.call.CallManager.Mode.VIDEO)
             }) {
-                Icon(Icons.Default.Videocam, contentDescription = "Video call", tint = TextMuted, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.Videocam, contentDescription = "视频通话", tint = TextMuted, modifier = Modifier.size(20.dp))
             }
             // 信任状态图标 — 点击弹安全码 Modal
             val isVerified = trustState is space.securechat.sdk.security.TrustState.Verified
             IconButton(onClick = { showSecurityDialog = true }) {
                 Icon(
                     imageVector = if (isVerified) Icons.Default.VerifiedUser else Icons.Default.GppMaybe,
-                    contentDescription = if (isVerified) "Verified" else "Unverified",
+                    contentDescription = if (isVerified) "已验证" else "未验证",
                     tint = if (isVerified) Success else Warning
                 )
             }
@@ -316,7 +316,7 @@ fun ChatScreen(
                                     color = BlueAccent, modifier = Modifier.size(16.dp), strokeWidth = 2.dp
                                 )
                             } else {
-                                Text("Load earlier messages", color = BlueAccent, fontSize = 13.sp)
+                                Text("加载更早的消息", color = BlueAccent, fontSize = 13.sp)
                             }
                         }
                     }
@@ -349,11 +349,11 @@ fun ChatScreen(
             ) {
                 Box(Modifier.width(3.dp).height(36.dp).background(BlueAccent, RoundedCornerShape(2.dp)))
                 Column(Modifier.weight(1f)) {
-                    Text("Reply to", color = BlueAccent, fontSize = 11.sp)
+                    Text("回复", color = BlueAccent, fontSize = 11.sp)
                     Text(reply.text, color = TextMuted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 IconButton(onClick = { replyToMsg = null }, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Cancel", tint = TextMuted, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Close, contentDescription = "取消", tint = TextMuted, modifier = Modifier.size(16.dp))
                 }
             }
         }
@@ -375,14 +375,14 @@ fun ChatScreen(
                     onClick = { showAttachMenu = !showAttachMenu },
                     modifier = Modifier.size(40.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Attach", tint = TextMuted)
+                    Icon(Icons.Default.Add, contentDescription = "添加附件", tint = TextMuted)
                 }
                 DropdownMenu(
                     expanded = showAttachMenu,
                     onDismissRequest = { showAttachMenu = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Photo") },
+                        text = { Text("照片") },
                         leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
                         onClick = {
                             showAttachMenu = false
@@ -390,7 +390,7 @@ fun ChatScreen(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("File") },
+                        text = { Text("文件") },
                         leadingIcon = { Icon(Icons.Default.AttachFile, contentDescription = null) },
                         onClick = {
                             showAttachMenu = false
@@ -398,7 +398,7 @@ fun ChatScreen(
                         }
                     )
                     DropdownMenuItem(
-                        text = { Text("Voice") },
+                        text = { Text("语音") },
                         leadingIcon = { Icon(Icons.Default.Mic, contentDescription = null) },
                         onClick = {
                             showAttachMenu = false
@@ -423,7 +423,7 @@ fun ChatScreen(
                     inputText = text
                     if (friendAliasId.isNotEmpty()) client.sendTyping(convId, friendAliasId)
                 },
-                placeholder = { Text("Message...", color = TextMuted) },
+                placeholder = { Text("输入消息...", color = TextMuted) },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
                     focusedBorderColor = Surface2, unfocusedBorderColor = Surface2,
@@ -455,7 +455,7 @@ fun ChatScreen(
                     .clip(CircleShape)
                     .background(if (inputText.isNotBlank()) BlueAccent else Surface2)
             ) {
-                Icon(Icons.Default.Send, contentDescription = "Send", tint = TextPrimary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Send, contentDescription = "发送", tint = TextPrimary, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -465,7 +465,7 @@ fun ChatScreen(
         AlertDialog(
             onDismissRequest = { showActionMenu = false; selectedMsg = null },
             containerColor = Surface1,
-            title = { Text("Message Options", color = TextPrimary) },
+            title = { Text("消息操作", color = TextPrimary) },
             text = {
                 Column {
                     if (selectedMsg!!.isMe) {
@@ -474,26 +474,26 @@ fun ChatScreen(
                                 try { client.retractMessage(selectedMsg!!.id, friendAliasId, convId) } catch (_: Exception) {}
                             }
                             showActionMenu = false
-                        }) { Text("Unsend", color = Danger) }
+                        }) { Text("撤回", color = Danger) }
                     }
                     TextButton(onClick = {
                         replyToMsg = selectedMsg
                         showActionMenu = false
-                    }) { Text("Reply", color = TextPrimary) }
+                    }) { Text("回复", color = TextPrimary) }
                     TextButton(onClick = {
                         selectedMsg?.text?.let { clipboard.setText(AnnotatedString(it)) }
                         showActionMenu = false
                         selectedMsg = null
-                    }) { Text("Copy", color = TextPrimary) }
+                    }) { Text("复制", color = TextPrimary) }
                     TextButton(onClick = {
                         showMsgDetails = true
                         showActionMenu = false
-                    }) { Text("Details", color = TextPrimary) }
+                    }) { Text("详情", color = TextPrimary) }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showActionMenu = false; selectedMsg = null }) {
-                    Text("Cancel", color = TextMuted)
+                    Text("取消", color = TextMuted)
                 }
             }
         )
@@ -533,21 +533,21 @@ fun ChatScreen(
         AlertDialog(
             onDismissRequest = { showMsgDetails = false; selectedMsg = null },
             containerColor = Surface1,
-            title = { Text("Message Details", color = TextPrimary) },
+            title = { Text("消息详情", color = TextPrimary) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     DetailRow("ID", msg.id)
-                    DetailRow("Time", detailTime)
-                    DetailRow("Status", msg.status)
-                    DetailRow("From", if (msg.isMe) "You" else (msg.fromAliasId ?: friendAliasId))
-                    DetailRow("Type", msg.msgType ?: "text")
-                    msg.replyToId?.let { DetailRow("Reply to", it) }
-                    msg.seq?.let { DetailRow("Seq", "$it") }
+                    DetailRow("时间", detailTime)
+                    DetailRow("状态", msg.status)
+                    DetailRow("发送方", if (msg.isMe) "我" else (msg.fromAliasId ?: friendAliasId))
+                    DetailRow("类型", msg.msgType ?: "text")
+                    msg.replyToId?.let { DetailRow("回复", it) }
+                    msg.seq?.let { DetailRow("序列号", "$it") }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showMsgDetails = false; selectedMsg = null }) {
-                    Text("Close", color = BlueAccent)
+                    Text("关闭", color = BlueAccent)
                 }
             }
         )
@@ -609,14 +609,14 @@ private fun VoiceRecorderDialog(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // 闪烁红点
                 Box(Modifier.size(10.dp).clip(CircleShape).background(Danger))
-                Text("Recording...", color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                Text("录音中...", color = TextPrimary, fontWeight = FontWeight.SemiBold)
             }
         },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Default.Mic, contentDescription = null, tint = BlueAccent, modifier = Modifier.size(48.dp))
                 Text(timeStr, color = TextPrimary, fontSize = 22.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-                Text("Tap Send to share, Cancel to discard", color = TextMuted, fontSize = 12.sp)
+                Text("点发送分享语音，取消则丢弃", color = TextMuted, fontSize = 12.sp)
             }
         },
         confirmButton = {
@@ -628,13 +628,13 @@ private fun VoiceRecorderDialog(
                 },
                 enabled = elapsed >= 1,
                 colors = ButtonDefaults.buttonColors(containerColor = BlueAccent)
-            ) { Text("Send") }
+            ) { Text("发送") }
         },
         dismissButton = {
             TextButton(onClick = {
                 recorder.cancel()
                 onCancel()
-            }) { Text("Cancel", color = TextMuted) }
+            }) { Text("取消", color = TextMuted) }
         }
     )
 }

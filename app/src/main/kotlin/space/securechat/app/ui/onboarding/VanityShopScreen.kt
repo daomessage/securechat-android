@@ -63,7 +63,7 @@ fun VanityShopScreen(appViewModel: AppViewModel) {
                 val s = client.vanity.orderStatus(oid)
                 orderStatus = s
                 if (s == "confirmed") {
-                    val alias = client.vanity.bind(oid)
+                    client.vanity.bind(oid)
                     appViewModel.setRoute(AppRoute.SET_NICKNAME)
                     return@LaunchedEffect
                 }
@@ -96,11 +96,11 @@ fun VanityShopScreen(appViewModel: AppViewModel) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("Claim Your ID", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Text("Choose a memorable alias", color = TextMuted, fontSize = 14.sp)
+                Text("领取你的 ID", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("选择一个易记的别名", color = TextMuted, fontSize = 14.sp)
             }
             TextButton(onClick = { appViewModel.setRoute(AppRoute.SET_NICKNAME) }) {
-                Text("Skip", color = TextMuted)
+                Text("跳过", color = TextMuted)
             }
         }
 
@@ -109,7 +109,7 @@ fun VanityShopScreen(appViewModel: AppViewModel) {
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("Search alias...", color = TextMuted) },
+                placeholder = { Text("搜索别名...", color = TextMuted) },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
                     focusedBorderColor = BlueAccent, unfocusedBorderColor = Surface2,
@@ -126,7 +126,7 @@ fun VanityShopScreen(appViewModel: AppViewModel) {
                 colors = ButtonDefaults.buttonColors(containerColor = BlueAccent),
                 modifier = Modifier.height(56.dp)
             ) {
-                Icon(Icons.Default.Search, contentDescription = "Search", tint = TextPrimary)
+                Icon(Icons.Default.Search, contentDescription = "搜索", tint = TextPrimary)
             }
         }
 
@@ -169,11 +169,11 @@ fun VanityShopScreen(appViewModel: AppViewModel) {
                 "%d:%02d".format(it / 60, it % 60)
             } ?: "—"
             val statusLabel = when (orderStatus) {
-                "pending"   -> "Waiting for payment…"
-                "confirmed" -> "Confirmed! Binding…"
-                "expired"   -> "Order expired"
-                "failed"    -> "Payment failed"
-                else        -> "Loading…"
+                "pending"   -> "等待支付中…"
+                "confirmed" -> "已确认，正在绑定…"
+                "expired"   -> "订单已过期"
+                "failed"    -> "支付失败"
+                else        -> "加载中…"
             }
             Card(
                 colors = CardDefaults.cardColors(containerColor = Surface1),
@@ -181,10 +181,10 @@ fun VanityShopScreen(appViewModel: AppViewModel) {
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Payment", color = TextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text("支付", color = TextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                         Text(remainStr, color = Warning, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    Text("Pay to claim @${selectedItem?.aliasId}", color = TextMuted, fontSize = 13.sp)
+                    Text("支付以领取 @${selectedItem?.aliasId}", color = TextMuted, fontSize = 13.sp)
                     Text(statusLabel, color = if (orderStatus == "confirmed") Success else BlueAccent, fontSize = 12.sp)
                     Button(
                         onClick = {
@@ -195,7 +195,7 @@ fun VanityShopScreen(appViewModel: AppViewModel) {
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = BlueAccent),
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Open Payment Page") }
+                    ) { Text("打开支付页面") }
                 }
             }
         }
@@ -219,9 +219,9 @@ private fun VanityResultRow(item: VanityItem, selected: Boolean, onBuy: () -> Un
             Column {
                 Text("@${item.aliasId}", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                 val tierLabel = when (item.tier) {
-                    "top"      -> "Top"
-                    "premium"  -> "Premium"
-                    "standard" -> "Standard"
+                    "top"      -> "顶级"
+                    "premium"  -> "高级"
+                    "standard" -> "标准"
                     else       -> item.tier
                 }
                 val tierColor = when (item.tier) {

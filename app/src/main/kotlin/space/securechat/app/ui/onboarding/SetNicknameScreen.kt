@@ -55,7 +55,7 @@ fun SetNicknameScreen(appViewModel: AppViewModel) {
 
                 appViewModel.setRoute(AppRoute.MAIN)
             } catch (e: Exception) {
-                errorMsg = "Registration failed: ${e.message}"
+                errorMsg = "注册失败：${e.message}"
             } finally {
                 isLoading = false
             }
@@ -68,13 +68,13 @@ fun SetNicknameScreen(appViewModel: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             TextButton(onClick = { appViewModel.setRoute(AppRoute.VANITY_SHOP) }) {
-                Text("← Back", color = TextMuted)
+                Text("← 返回", color = TextMuted)
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Choose a Display Name", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("选择显示昵称", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    "This will be shown to your contacts. You can change it later.",
+                    "这是其他联系人看到的名称，之后可随时修改。",
                     color = TextMuted, fontSize = 14.sp, lineHeight = 20.sp
                 )
             }
@@ -82,8 +82,8 @@ fun SetNicknameScreen(appViewModel: AppViewModel) {
             OutlinedTextField(
                 value = nickname,
                 onValueChange = { if (it.length <= 30) nickname = it },
-                label = { Text("Display Name", color = TextMuted) },
-                placeholder = { Text("e.g. Alice", color = TextMuted) },
+                label = { Text("显示昵称", color = TextMuted) },
+                placeholder = { Text("例如：小明", color = TextMuted) },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
                     focusedBorderColor = BlueAccent, unfocusedBorderColor = Surface2,
@@ -111,7 +111,7 @@ fun SetNicknameScreen(appViewModel: AppViewModel) {
                 if (isLoading) {
                     CircularProgressIndicator(color = TextPrimary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Create Account", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("创建账户", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

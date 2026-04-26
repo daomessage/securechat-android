@@ -50,9 +50,9 @@ fun ChannelsTab(appViewModel: AppViewModel) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Channels", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Text("频道", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             IconButton(onClick = { showCreate = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Create", tint = BlueAccent)
+                Icon(Icons.Default.Add, contentDescription = "新建频道", tint = BlueAccent)
             }
         }
 
@@ -64,7 +64,7 @@ fun ChannelsTab(appViewModel: AppViewModel) {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search channels...", color = TextMuted) },
+                placeholder = { Text("搜索频道...", color = TextMuted) },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
                     focusedBorderColor = Surface2, unfocusedBorderColor = Surface2,
@@ -87,7 +87,7 @@ fun ChannelsTab(appViewModel: AppViewModel) {
                 colors = ButtonDefaults.buttonColors(containerColor = BlueAccent),
                 modifier = Modifier.height(56.dp)
             ) {
-                Icon(Icons.Default.Search, contentDescription = "Search", tint = TextPrimary)
+                Icon(Icons.Default.Search, contentDescription = "搜索", tint = TextPrimary)
             }
         }
 
@@ -97,8 +97,8 @@ fun ChannelsTab(appViewModel: AppViewModel) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("📢", fontSize = 40.sp)
-                    Text("No channels yet", color = TextMuted, fontSize = 16.sp)
-                    Text("Create or search for channels", color = TextMuted, fontSize = 13.sp)
+                    Text("还没有频道", color = TextMuted, fontSize = 16.sp)
+                    Text("创建或搜索频道", color = TextMuted, fontSize = 13.sp)
                 }
             }
         } else {
@@ -170,10 +170,10 @@ fun ChannelsTab(appViewModel: AppViewModel) {
         AlertDialog(
             onDismissRequest = { quotaError = null },
             containerColor = Surface1,
-            title = { Text("Error", color = TextPrimary) },
+            title = { Text("出错了", color = TextPrimary) },
             text = { Text(msg, color = TextMuted) },
             confirmButton = {
-                TextButton(onClick = { quotaError = null }) { Text("OK", color = BlueAccent) }
+                TextButton(onClick = { quotaError = null }) { Text("确定", color = BlueAccent) }
             }
         )
     }
@@ -211,18 +211,18 @@ private fun CreateChannelDialog(onDismiss: () -> Unit, onCreate: (String, String
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Surface1,
-        title = { Text("Create Channel", color = TextPrimary) },
+        title = { Text("创建频道", color = TextPrimary) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
-                    label = { Text("Channel Name", color = TextMuted) },
+                    label = { Text("频道名称", color = TextMuted) },
                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary),
                     singleLine = true, modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = desc, onValueChange = { desc = it },
-                    label = { Text("Description", color = TextMuted) },
+                    label = { Text("简介", color = TextMuted) },
                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary),
                     minLines = 2, modifier = Modifier.fillMaxWidth()
                 )
@@ -232,10 +232,10 @@ private fun CreateChannelDialog(onDismiss: () -> Unit, onCreate: (String, String
             Button(
                 onClick = { if (name.isNotBlank()) onCreate(name, desc) },
                 colors = ButtonDefaults.buttonColors(containerColor = BlueAccent)
-            ) { Text("Create") }
+            ) { Text("创建") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = TextMuted) }
+            TextButton(onClick = onDismiss) { Text("取消", color = TextMuted) }
         }
     )
 }
@@ -246,8 +246,6 @@ private fun QuotaPaymentDialog(
     onDismiss: () -> Unit,
     onPaid: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    val context = androidx.compose.ui.platform.LocalContext.current
     var order by remember { mutableStateOf<space.securechat.sdk.channels.ChannelTradeOrder?>(null) }
     var status by remember { mutableStateOf("") }
     var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -269,11 +267,11 @@ private fun QuotaPaymentDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Surface1,
-        title = { Text("Buy Channel Quota", color = TextPrimary) },
+        title = { Text("购买频道配额", color = TextPrimary) },
         text = {
             val o = order
             if (loadError != null) {
-                Text("Failed to start payment: $loadError", color = Danger)
+                Text("发起支付失败：$loadError", color = Danger)
             } else if (o == null) {
                 Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = BlueAccent)
@@ -290,20 +288,20 @@ private fun QuotaPaymentDialog(
                 val mm = remainSec / 60
                 val ss = remainSec % 60
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Price: ${o.priceUsdt} USDT", color = TextPrimary, fontWeight = FontWeight.SemiBold)
-                    Text("Pay to: ${o.payTo}", color = TextMuted, fontSize = 12.sp)
-                    Text("Expires in %d:%02d".format(mm, ss), color = Warning, fontSize = 12.sp)
-                    Text("Status: ${status.ifEmpty { "pending" }}", color = BlueAccent, fontSize = 12.sp)
+                    Text("价格：${o.priceUsdt} USDT", color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                    Text("收款地址：${o.payTo}", color = TextMuted, fontSize = 12.sp)
+                    Text("剩余 %d:%02d 过期".format(mm, ss), color = Warning, fontSize = 12.sp)
+                    Text("状态：${status.ifEmpty { "待支付" }}", color = BlueAccent, fontSize = 12.sp)
                 }
             }
         },
         confirmButton = {
             TextButton(onClick = onPaid) {
-                Text("I've Paid", color = BlueAccent)
+                Text("我已支付", color = BlueAccent)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = TextMuted) }
+            TextButton(onClick = onDismiss) { Text("取消", color = TextMuted) }
         }
     )
 }

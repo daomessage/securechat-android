@@ -67,10 +67,33 @@ class CallManager private constructor() {
     private var videoCapturer: VideoCapturer? = null
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
 
-    // ICE 服务器配置 — 默认 Google STUN；生产应换成自家 TURN
-    private val iceServers: List<PeerConnection.IceServer> = listOf(
-        PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
-    )
+    // ICE 服务器配置 — 运行时从 /api/v1/calls/ice-config 拉取（Cloudflare Realtime TURN）
+    // 仅在拉取失败时降级为 Google 公共 STUN
+    private suspend fun fetchIceServers(): List<PeerConnection.IceServer> {
+        val turnConfig = try { client.fetchTurnConfig() } catch (e: Exception) { null }
+        if (turnConfig != null) {
+            val servers = turnConfig.iceServers.mapNotNull { srv ->
+                @Suppress("UNCHECKED_CAST")
+                val urls = (srv["urls"] as? List<String>) ?: return@mapNotNull null
+                val username   = srv["username"]   as? String
+                val credential = srv["credential"] as? String
+                val builder = PeerConnection.IceServer.builder(urls)
+                if (username != null && credential != null) {
+                    builder.setUsername(username).setPassword(credential)
+                }
+                builder.createIceServer()
+            }
+            if (servers.isNotEmpty()) {
+                android.util.Log.d("CallManager", "ICE: CF TURN 凭证获取成功，节点数: ${servers.size}")
+                return servers
+            }
+        }
+        android.util.Log.w("CallManager", "ICE: 拉取失败，降级为 Google STUN")
+        return listOf(
+            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer(),
+            PeerConnection.IceServer.builder("stun:stun1.l.google.com:19302").createIceServer()
+        )
+    }
 
     // 缓存对端传入的 ICE 候选（若 remote description 还没设就先缓存）
     private val pendingIce = mutableListOf<IceCandidate>()
@@ -116,9 +139,11 @@ class CallManager private constructor() {
         _info.value = CallInfo(callId, remoteAlias, isCaller = true, mode = mode)
         _state.value = State.OUTGOING
 
-        createPeerConnection()
-        attachLocalMedia(mode)
-        createAndSendOffer(mode)
+        scope.launch {
+            createPeerConnection()
+            attachLocalMedia(mode)
+            createAndSendOffer(mode)
+        }
 
         client.sendSignalFrame(mapOf(
             "type"     to "call_invite",
@@ -141,26 +166,34 @@ class CallManager private constructor() {
         if (_state.value != State.INCOMING) return
         _state.value = State.CONNECTING
 
-        createPeerConnection()
-        attachLocalMedia(info.mode)
-        // 对端 offer 应在 handleIncoming 时已 setRemoteDescription，这里直接 createAnswer
-        peerConnection?.createAnswer(object : SimpleSdpObserver() {
-            override fun onCreateSuccess(sdp: SessionDescription?) {
-                sdp ?: return
-                peerConnection?.setLocalDescription(SimpleSdpObserver(), sdp)
-                client.sendSignalFrame(mapOf(
-                    "type"     to "call_answer",
-                    "to"       to info.remoteAlias,
-                    "call_id"  to info.callId,
-                    "sdp"      to sdp.description,
-                    "sdp_type" to "answer",
-                    "crypto_v" to 1,
-                ))
-                scope.launch { _state.value = State.CONNECTED }
-                // flush pending ICE
-                flushPendingIce()
+        scope.launch {
+            createPeerConnection()
+            attachLocalMedia(info.mode)
+            // 对端 offer 应在 handleIncoming 时已 setRemoteDescription，这里直接 createAnswer
+            // 显式指定 OfferToReceiveVideo，确保视频来电被叫方协商出视频 track
+            val answerConstraints = MediaConstraints().apply {
+                mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+                mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo",
+                    if (info.mode == Mode.VIDEO) "true" else "false"))
             }
-        }, MediaConstraints())
+            peerConnection?.createAnswer(object : SimpleSdpObserver() {
+                override fun onCreateSuccess(sdp: SessionDescription?) {
+                    sdp ?: return
+                    peerConnection?.setLocalDescription(SimpleSdpObserver(), sdp)
+                    client.sendSignalFrame(mapOf(
+                        "type"     to "call_answer",
+                        "to"       to info.remoteAlias,
+                        "call_id"  to info.callId,
+                        "sdp"      to sdp.description,
+                        "sdp_type" to "answer",
+                        "crypto_v" to 1,
+                    ))
+                    scope.launch { _state.value = State.CONNECTED }
+                    // flush pending ICE
+                    flushPendingIce()
+                }
+            }, answerConstraints)
+        }
     }
 
     fun reject() {
@@ -209,11 +242,12 @@ class CallManager private constructor() {
 
     // ────────────────────────────────── 内部 ──────────────────────────────
 
-    private fun createPeerConnection() {
+    private suspend fun createPeerConnection() {
         val factory = peerConnectionFactory ?: run {
             Log.e("CallManager", "PeerConnectionFactory not initialized — call init(context) first")
             return
         }
+        val iceServers = fetchIceServers()
         val config = PeerConnection.RTCConfiguration(iceServers).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
         }

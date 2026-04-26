@@ -74,10 +74,10 @@ fun MainScreen(appViewModel: AppViewModel) {
                 showPushPrompt = false
             },
             containerColor = space.securechat.app.ui.theme.Surface1,
-            title = { Text("Enable Notifications", color = space.securechat.app.ui.theme.TextPrimary, fontWeight = FontWeight.Bold) },
+            title = { Text("开启通知", color = space.securechat.app.ui.theme.TextPrimary, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "Turn on notifications so you never miss a message from friends.",
+                    "开启通知，及时收到好友的消息。",
                     color = space.securechat.app.ui.theme.TextMuted, fontSize = 14.sp
                 )
             },
@@ -85,13 +85,13 @@ fun MainScreen(appViewModel: AppViewModel) {
                 Button(
                     onClick = { launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS) },
                     colors = ButtonDefaults.buttonColors(containerColor = space.securechat.app.ui.theme.BlueAccent)
-                ) { Text("Enable") }
+                ) { Text("开启") }
             },
             dismissButton = {
                 TextButton(onClick = {
                     prefs.edit().putBoolean("push_prompted", true).apply()
                     showPushPrompt = false
-                }) { Text("Later", color = space.securechat.app.ui.theme.TextMuted) }
+                }) { Text("稍后", color = space.securechat.app.ui.theme.TextMuted) }
             }
         )
     }
@@ -124,12 +124,12 @@ fun MainScreen(appViewModel: AppViewModel) {
     Scaffold(
         containerColor = DarkBg,
         bottomBar = {
-            // design tokens · TabBar 高 56dp + 顶部 border.default
-            // Material 3 NavigationBar 默认 80dp, 必须 Modifier.height(56.dp) 显式覆盖
+            // design tokens · TabBar 高 56dp 是 web/iOS 规范, 但 Material 3 NavigationBar
+            // 用 56dp 会裁掉 selected indicator pill (24dp) + icon + label 三层堆叠.
+            // 这里用 Material 3 默认 80dp, 让选中态图标/文字都能完整显示.
             NavigationBar(
                 containerColor = Surface1,
                 tonalElevation = 0.dp,
-                modifier = Modifier.height(56.dp),
             ) {
                 TabItem.entries.forEach { tab ->
                     val isSelected = activeTab == tab.mainTab
@@ -188,8 +188,8 @@ private enum class TabItem(
     val icon: ImageVector,
     val selectedIcon: ImageVector
 ) {
-    MESSAGES (MainTab.MESSAGES,  "Messages",  Icons.Default.ChatBubbleOutline, Icons.Default.ChatBubble),
-    CHANNELS (MainTab.CHANNELS,  "Channels",  Icons.Default.Campaign,          Icons.Default.Campaign),
-    CONTACTS (MainTab.CONTACTS,  "Contacts",  Icons.Default.PeopleOutline,     Icons.Default.People),
-    SETTINGS (MainTab.SETTINGS,  "Settings",  Icons.Default.Settings,          Icons.Default.Settings),
+    MESSAGES (MainTab.MESSAGES,  "消息",      Icons.Default.ChatBubbleOutline, Icons.Default.ChatBubble),
+    CHANNELS (MainTab.CHANNELS,  "频道",      Icons.Default.Campaign,          Icons.Default.Campaign),
+    CONTACTS (MainTab.CONTACTS,  "联系人",    Icons.Default.PeopleOutline,     Icons.Default.People),
+    SETTINGS (MainTab.SETTINGS,  "设置",      Icons.Default.Settings,          Icons.Default.Settings),
 }

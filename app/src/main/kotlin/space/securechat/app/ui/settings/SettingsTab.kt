@@ -70,11 +70,11 @@ fun SettingsTab(appViewModel: AppViewModel) {
                     client.push.register(token)
                     pushEnabled = true
                 } catch (e: Exception) {
-                    pushError = e.message ?: "Push register failed"
+                    pushError = e.message ?: "推送注册失败"
                 }
             }
         } else {
-            pushError = "Notification permission denied"
+            pushError = "通知权限被拒绝"
         }
     }
 
@@ -82,7 +82,7 @@ fun SettingsTab(appViewModel: AppViewModel) {
         Modifier.fillMaxSize().background(DarkBg).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Text("Settings", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        Text("设置", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
 
         // 用户信息卡
         Card(
@@ -104,14 +104,14 @@ fun SettingsTab(appViewModel: AppViewModel) {
                     )
                 }
                 Column {
-                    Text(userInfo.nickname.ifEmpty { "Loading..." }, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                    Text(userInfo.nickname.ifEmpty { "加载中..." }, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
                     Text("@${userInfo.aliasId}", color = TextMuted, fontSize = 13.sp)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text("🔒", fontSize = 10.sp)
-                        Text("End-to-end encrypted", color = Success, fontSize = 11.sp)
+                        Text("端到端加密", color = Success, fontSize = 11.sp)
                     }
                 }
             }
@@ -125,15 +125,15 @@ fun SettingsTab(appViewModel: AppViewModel) {
             Column {
                 SettingRow(
                     icon = Icons.Default.Tag,
-                    label = "Vanity ID Shop",
-                    subtitle = "Get a memorable alias",
+                    label = "靓号商城",
+                    subtitle = "获取一个好记的别名",
                     onClick = { appViewModel.setRoute(AppRoute.VANITY_SHOP) }
                 )
                 Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp))
                 SettingRow(
                     icon = Icons.Default.Notifications,
-                    label = "Push Notifications",
-                    subtitle = pushError ?: if (pushEnabled) "Enabled" else "Tap to enable",
+                    label = "推送通知",
+                    subtitle = pushError ?: if (pushEnabled) "已开启" else "点击开启",
                     onClick = {
                         pushError = null
                         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -146,7 +146,7 @@ fun SettingsTab(appViewModel: AppViewModel) {
                                     client.push.register(token)
                                     pushEnabled = true
                                 } catch (e: Exception) {
-                                    pushError = e.message ?: "Push register failed"
+                                    pushError = e.message ?: "推送注册失败"
                                 }
                             }
                         }
@@ -155,8 +155,8 @@ fun SettingsTab(appViewModel: AppViewModel) {
                 Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp))
                 SettingRow(
                     icon = Icons.Default.FileDownload,
-                    label = if (backupOverdue) "Export Chats 🔴" else "Export Chats",
-                    subtitle = if (backupOverdue) "Not backed up in 7+ days!" else "Save NDJSON backup",
+                    label = if (backupOverdue) "导出聊天记录 🔴" else "导出聊天记录",
+                    subtitle = if (backupOverdue) "已 7 天以上未备份!" else "保存为 NDJSON 备份",
                     onClick = {
                         scope.launch {
                             try {
@@ -179,7 +179,7 @@ fun SettingsTab(appViewModel: AppViewModel) {
                                     putExtra(android.content.Intent.EXTRA_SUBJECT, fileName)
                                     addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                context.startActivity(android.content.Intent.createChooser(shareIntent, "Share backup"))
+                                context.startActivity(android.content.Intent.createChooser(shareIntent, "分享备份"))
                                 prefs.edit().putLong("last_export_ts", System.currentTimeMillis()).apply()
                             } catch (e: Exception) {
                                 android.util.Log.e("Settings", "export failed", e)
@@ -190,27 +190,27 @@ fun SettingsTab(appViewModel: AppViewModel) {
                 Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp))
                 SettingRow(
                     icon = Icons.Default.Shield,
-                    label = "View Recovery Phrase",
-                    subtitle = "Backup your secret words",
+                    label = "查看助记词",
+                    subtitle = "备份你的密钥短语",
                     onClick = { showMnemonicDialog = true }
                 )
                 Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp))
                 SettingRow(
                     icon = Icons.Default.Storage,
-                    label = "Storage",
+                    label = "存储",
                     subtitle = storageEstimate?.let {
                         val usedMB = it.used_bytes / 1024f / 1024f
                         val totalMB = it.quota_bytes / 1024f / 1024f
                         if (totalMB > 0) "%.1f MB / %.1f MB".format(usedMB, totalMB)
-                        else "%.1f MB used".format(usedMB)
-                    } ?: "Loading…",
+                        else "已用 %.1f MB".format(usedMB)
+                    } ?: "加载中…",
                     onClick = {}
                 )
                 Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp))
                 SettingRow(
                     icon = Icons.Default.Info,
-                    label = "About SecureChat",
-                    subtitle = "v1.0.0 · Powered by ECDH + AES-GCM",
+                    label = "关于 DAO Message",
+                    subtitle = "v1.0.0 · 基于 ECDH + AES-GCM 加密",
                     onClick = {}
                 )
             }
@@ -239,12 +239,12 @@ fun SettingsTab(appViewModel: AppViewModel) {
             } else {
                 Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Sign Out", fontWeight = FontWeight.SemiBold)
+                Text("退出登录", fontWeight = FontWeight.SemiBold)
             }
         }
 
         Text(
-            "SecureChat Android v1.0.0\nYour keys never leave this device.",
+            "DAO Message Android v1.0.0\n你的密钥永远不会离开本设备。",
             color = TextMuted, fontSize = 11.sp,
             modifier = Modifier.align(Alignment.CenterHorizontally)
         )
@@ -260,11 +260,10 @@ fun SettingsTab(appViewModel: AppViewModel) {
             AlertDialog(
                 onDismissRequest = { showMnemonicDialog = false },
                 containerColor = Surface1,
-                title = { Text("Security Warning", color = TextPrimary) },
+                title = { Text("安全提示", color = TextPrimary) },
                 text = {
                     Text(
-                        "Your recovery phrase gives full access to your account. " +
-                        "Never share it with anyone. Only view in a private place.",
+                        "你的助记词可以完全控制账号。永远不要分享给任何人,只在私密环境查看。",
                         color = TextMuted, fontSize = 14.sp, lineHeight = 20.sp
                     )
                 },
@@ -277,10 +276,10 @@ fun SettingsTab(appViewModel: AppViewModel) {
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Danger)
-                    ) { Text("Show Phrase") }
+                    ) { Text("显示助记词") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showMnemonicDialog = false }) { Text("Cancel", color = TextMuted) }
+                    TextButton(onClick = { showMnemonicDialog = false }) { Text("取消", color = TextMuted) }
                 }
             )
         } else {
@@ -289,7 +288,7 @@ fun SettingsTab(appViewModel: AppViewModel) {
                     showMnemonicDialog = false; mnemonicConfirmed = false; mnemonicText = null
                 },
                 containerColor = Surface1,
-                title = { Text("Recovery Phrase", color = TextPrimary) },
+                title = { Text("助记词", color = TextPrimary) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (mnemonicText != null) {
@@ -333,7 +332,7 @@ fun SettingsTab(appViewModel: AppViewModel) {
                                         }
                                     } catch (_: Exception) {}
                                 }
-                            }) { Text("Copy (auto-clear in 60s)", color = BlueAccent, fontSize = 13.sp) }
+                            }) { Text("复制 (60 秒后自动清空)", color = BlueAccent, fontSize = 13.sp) }
                         } else {
                             Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator(color = BlueAccent)
@@ -345,7 +344,7 @@ fun SettingsTab(appViewModel: AppViewModel) {
                     Button(
                         onClick = { showMnemonicDialog = false; mnemonicConfirmed = false; mnemonicText = null },
                         colors = ButtonDefaults.buttonColors(containerColor = BlueAccent)
-                    ) { Text("Done") }
+                    ) { Text("完成") }
                 }
             )
         }

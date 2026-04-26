@@ -106,11 +106,10 @@ fun AppNavigation(appViewModel: AppViewModel) {
         AlertDialog(
             onDismissRequest = {},  // 不可关闭
             containerColor = Surface1,
-            title = { Text("Logged out", color = TextPrimary, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
+            title = { Text("已被踢下线", color = TextPrimary, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
             text = {
                 Text(
-                    "Your account was logged in on another device. " +
-                    "For security, only one device can be active at a time.",
+                    "你的账号在另一台设备登录了。出于安全考虑,同一时间只能在一台设备上使用。",
                     color = TextMuted, fontSize = 14.sp, lineHeight = 20.sp
                 )
             },
@@ -124,7 +123,7 @@ fun AppNavigation(appViewModel: AppViewModel) {
                         appViewModel.setRoute(AppRoute.WELCOME)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = BlueAccent)
-                ) { Text("OK") }
+                ) { Text("好的") }
             }
         )
     }

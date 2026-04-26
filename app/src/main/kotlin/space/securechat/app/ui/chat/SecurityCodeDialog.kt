@@ -38,7 +38,7 @@ fun SecurityCodeDialog(
         shape = RoundedCornerShape(16.dp),
         title = {
             Text(
-                "Verify Safety Number",
+                "验证安全码",
                 color = TextPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
@@ -51,7 +51,7 @@ fun SecurityCodeDialog(
             ) {
                 // 说明文字
                 Text(
-                    "Compare this code with $friendNickname to verify you're talking to the right person.",
+                    "请与 $friendNickname 当面或通过通话核对此安全码，确保与正确的人通信。",
                     color = TextMuted,
                     fontSize = 14.sp,
                     lineHeight = 20.sp
@@ -97,7 +97,7 @@ fun SecurityCodeDialog(
                 ) {
                     Icon(Icons.Default.ContentCopy, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Copy Code", color = TextPrimary)
+                    Text("复制安全码", color = TextPrimary)
                 }
 
                 // 警告
@@ -112,7 +112,7 @@ fun SecurityCodeDialog(
                     ) {
                         Text("⚠️", fontSize = 14.sp)
                         Text(
-                            "Never ignore safety numbers. Contact us immediately if they don't match.",
+                            "请勿忽略安全码。如果不匹配，请立即联系我们。",
                             color = Danger,
                             fontSize = 12.sp,
                             lineHeight = 18.sp
@@ -127,12 +127,12 @@ fun SecurityCodeDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = BlueAccent),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                Text("I've Verified", color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                Text("已核对", color = TextPrimary, fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Later", color = TextMuted)
+                Text("稍后", color = TextMuted)
             }
         }
     )

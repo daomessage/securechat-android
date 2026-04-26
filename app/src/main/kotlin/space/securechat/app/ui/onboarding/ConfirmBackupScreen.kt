@@ -60,13 +60,13 @@ fun ConfirmBackupScreen(appViewModel: AppViewModel) {
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
         TextButton(onClick = { appViewModel.setRoute(AppRoute.GENERATE_MNEMONIC) }) {
-            Text("← Back", color = TextMuted)
+            Text("← 返回", color = TextMuted)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Verify Your Backup", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text("验证你的备份", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Text(
-                "Step ${currentStep + 1} of ${testIndices.size}",
+                "第 ${currentStep + 1} 步 / 共 ${testIndices.size} 步",
                 color = TextMuted, fontSize = 14.sp
             )
         }
@@ -90,7 +90,7 @@ fun ConfirmBackupScreen(appViewModel: AppViewModel) {
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 Text(
-                    "Select word #${currentIdx + 1}",
+                    "请选择第 ${currentIdx + 1} 个单词",
                     color = TextMuted, fontSize = 15.sp
                 )
 
@@ -124,7 +124,7 @@ fun ConfirmBackupScreen(appViewModel: AppViewModel) {
                 }
 
                 if (error) {
-                    Text("Incorrect. Try again.", color = Danger, fontSize = 13.sp)
+                    Text("不正确，请重试。", color = Danger, fontSize = 13.sp)
                 }
             }
         }

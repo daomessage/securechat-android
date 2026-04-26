@@ -72,11 +72,11 @@ fun ChannelDetailScreen(channelId: String, onBack: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = TextPrimary)
             }
             Column(Modifier.weight(1f)) {
                 Text(channelName, color = TextPrimary, fontWeight = FontWeight.SemiBold)
-                Text(if (isSubscribed) "Subscribed" else "Channel", color = TextMuted, fontSize = 12.sp)
+                Text(if (isSubscribed) "已订阅" else "频道", color = TextMuted, fontSize = 12.sp)
             }
             // For-sale 购买按钮（owner 不显示）
             if (!isOwner && forSale) {
@@ -93,7 +93,7 @@ fun ChannelDetailScreen(channelId: String, onBack: () -> Unit) {
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text("Buy ${salePrice?.toInt() ?: 0} USDT", color = TextPrimary, fontSize = 12.sp)
+                    Text("以 ${salePrice?.toInt() ?: 0} USDT 购买", color = TextPrimary, fontSize = 12.sp)
                 }
             }
             // 订阅/退订 toggle
@@ -112,7 +112,7 @@ fun ChannelDetailScreen(channelId: String, onBack: () -> Unit) {
                     }
                 }) {
                     Text(
-                        if (isSubscribed) "Unsubscribe" else "Subscribe",
+                        if (isSubscribed) "退订" else "订阅",
                         color = if (isSubscribed) TextMuted else BlueAccent,
                         fontSize = 13.sp
                     )
@@ -132,7 +132,7 @@ fun ChannelDetailScreen(channelId: String, onBack: () -> Unit) {
             if (posts.isEmpty()) {
                 item {
                     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        Text("No posts yet", color = TextMuted)
+                        Text("暂无帖子", color = TextMuted)
                     }
                 }
             }
@@ -188,7 +188,7 @@ fun ChannelDetailScreen(channelId: String, onBack: () -> Unit) {
                             onValueChange = { postInput = it },
                             placeholder = {
                                 Text(
-                                    if (isMarkdown) "# Title\\n**bold** *italic*\\n- list" else "Write a post...",
+                                    if (isMarkdown) "# 标题\\n**粗体** *斜体*\\n- 列表" else "发表新帖子...",
                                     color = TextMuted
                                 )
                             },
@@ -214,7 +214,7 @@ fun ChannelDetailScreen(channelId: String, onBack: () -> Unit) {
                                     showPreview = false
                                     posts = client.channels.getPosts(channelId)
                                 } catch (e: Exception) {
-                                    errorMsg = e.message ?: "Failed to post"
+                                    errorMsg = e.message ?: "发帖失败"
                                 } finally {
                                     isPosting = false
                                 }
@@ -226,7 +226,7 @@ fun ChannelDetailScreen(channelId: String, onBack: () -> Unit) {
                     modifier = Modifier.height(56.dp)
                 ) {
                     if (isPosting) CircularProgressIndicator(color = TextPrimary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    else Icon(Icons.Default.Send, contentDescription = "Post", tint = TextPrimary)
+                    else Icon(Icons.Default.Send, contentDescription = "发布", tint = TextPrimary)
                 }
                 } // Row
             } // Column
@@ -237,26 +237,26 @@ fun ChannelDetailScreen(channelId: String, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { showBuyDialog = false; buyOrder = null },
             containerColor = Surface1,
-            title = { Text("Buy Channel", color = TextPrimary) },
+            title = { Text("购买频道", color = TextPrimary) },
             text = {
                 if (o == null) {
-                    Text("Loading...", color = TextMuted)
+                    Text("加载中...", color = TextMuted)
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Price: ${o.priceUsdt} USDT", color = TextPrimary, fontWeight = FontWeight.SemiBold)
-                        Text("Pay to: ${o.payTo}", color = TextMuted, fontSize = 12.sp)
-                        Text("Expires: ${o.expiredAt}", color = TextMuted, fontSize = 12.sp)
+                        Text("价格：${o.priceUsdt} USDT", color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                        Text("收款地址：${o.payTo}", color = TextMuted, fontSize = 12.sp)
+                        Text("过期时间：${o.expiredAt}", color = TextMuted, fontSize = 12.sp)
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showBuyDialog = false; buyOrder = null }) {
-                    Text("I've Paid", color = BlueAccent)
+                    Text("我已支付", color = BlueAccent)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showBuyDialog = false; buyOrder = null }) {
-                    Text("Cancel", color = TextMuted)
+                    Text("取消", color = TextMuted)
                 }
             }
         )
