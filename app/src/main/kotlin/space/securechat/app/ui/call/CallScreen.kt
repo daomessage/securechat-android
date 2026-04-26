@@ -34,7 +34,7 @@ fun CallScreen(callManager: CallManager) {
     val state by callManager.state.collectAsState()
     val info by callManager.info.collectAsState()
     val localStream by callManager.localStream.collectAsState()
-    val remoteStream by callManager.remoteStream.collectAsState()
+    val remoteVideoTrack by callManager.remoteVideoTrack.collectAsState()
     val micMuted by callManager.micMuted.collectAsState()
     val cameraMuted by callManager.cameraMuted.collectAsState()
 
@@ -64,7 +64,11 @@ fun CallScreen(callManager: CallManager) {
         // addSink/removeSink, 否则 onTrack 后视频 track 不会被挂到 SurfaceViewRenderer。
         if (isVideo) {
             val remoteRenderer = remember { mutableStateOf<SurfaceViewRenderer?>(null) }
-            VideoSinkBinder(remoteStream, remoteRenderer.value)
+            // 远端 video track 直接订阅 remoteVideoTrack 而不是 remoteStream:
+            // Unified Plan 下 audio/video 各自一帧 onTrack,先 audio 后 video,
+            // 二次赋值的 _remoteStream 引用相同 → StateFlow 不重发 → DisposableEffect
+            // 不重跑 → addSink 永远不执行(线上 bug:有声没图)。改用独立 track flow。
+            VideoTrackBinder(remoteVideoTrack, remoteRenderer.value)
             AndroidView(
                 factory = { ctx ->
                     SurfaceViewRenderer(ctx).apply {
@@ -188,14 +192,35 @@ fun CallScreen(callManager: CallManager) {
 }
 
 /**
- * 把 stream 的第一条 videoTrack 挂到 renderer。
- * 当 stream 或 renderer 任一变化时,先 remove 旧 sink 再 add 新 sink。
- * 离开时自动 release renderer 防泄漏。
+ * 本地预览:把 stream 的第一条 videoTrack 挂到 renderer。
+ * 本地 stream 在 attachLocalMedia 一次性 addTrack 后赋值,引用稳定无 race。
  */
 @Composable
 private fun VideoSinkBinder(stream: MediaStream?, renderer: SurfaceViewRenderer?) {
     DisposableEffect(stream, renderer) {
         val track: VideoTrack? = stream?.videoTracks?.firstOrNull()
+        if (renderer != null && track != null) {
+            try { track.addSink(renderer) } catch (_: Throwable) {}
+        }
+        onDispose {
+            if (renderer != null && track != null) {
+                try { track.removeSink(renderer) } catch (_: Throwable) {}
+            }
+        }
+    }
+    DisposableEffect(renderer) {
+        onDispose {
+            try { renderer?.release() } catch (_: Throwable) {}
+        }
+    }
+}
+
+/**
+ * 远端视频:直接绑 VideoTrack,绕开 MediaStream 引用相等不触发的问题。
+ */
+@Composable
+private fun VideoTrackBinder(track: VideoTrack?, renderer: SurfaceViewRenderer?) {
+    DisposableEffect(track, renderer) {
         if (renderer != null && track != null) {
             try { track.addSink(renderer) } catch (_: Throwable) {}
         }

@@ -48,6 +48,13 @@ class CallManager private constructor() {
     private val _remoteStream = MutableStateFlow<MediaStream?>(null)
     val remoteStream: StateFlow<MediaStream?> = _remoteStream.asStateFlow()
 
+    // 远端 video track 单独暴露给 UI。
+    // 不依赖 _remoteStream 引用变更:Unified Plan 下 audio/video 各自一帧 onTrack,
+    // 第一帧建 stream 赋值,第二帧加 track 进同一引用再赋值 → StateFlow 引用相等
+    // 不触发更新 → UI 永远拿不到 video track → 远端 0 fps(线上现象:有声没图)。
+    private val _remoteVideoTrack = MutableStateFlow<VideoTrack?>(null)
+    val remoteVideoTrack: StateFlow<VideoTrack?> = _remoteVideoTrack.asStateFlow()
+
     private val _micMuted = MutableStateFlow(false)
     val micMuted: StateFlow<Boolean> = _micMuted.asStateFlow()
 
@@ -380,6 +387,8 @@ class CallManager private constructor() {
                         is VideoTrack -> {
                             if (stream.videoTracks.none { it.id() == track.id() })
                                 stream.addTrack(track)
+                            // 单独暴露给 UI,绕开 stream 引用相等不更新的问题
+                            _remoteVideoTrack.value = track
                         }
                     }
                     // 触发 StateFlow 更新让 UI 重新收到 stream
@@ -491,6 +500,7 @@ class CallManager private constructor() {
         peerConnection = null
         _localStream.value = null
         _remoteStream.value = null
+        _remoteVideoTrack.value = null
         _micMuted.value = false
         _cameraMuted.value = false
         pendingIce.clear()
