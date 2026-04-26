@@ -1,6 +1,7 @@
 package space.securechat.app.call
 
 import android.content.Context
+import android.media.AudioManager
 import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -100,6 +101,40 @@ class CallManager private constructor() {
 
     // 缓存 call_offer SDP（被叫方点"接听"前 peerConnection 尚未创建，需先缓存）
     private var pendingOfferSdp: String? = null
+
+    // ─── 音频路由 ─────────────────────────────────────────────────────────────
+    // WebRTC 音频默认走 STREAM_VOICE_CALL，必须把 AudioManager 切到 IN_COMMUNICATION
+    // 模式才能正常播放远端音频；否则会被路由到听筒小喇叭或音量为 0 → 表面上 "无声音"。
+    private var savedAudioMode: Int = AudioManager.MODE_NORMAL
+    private var savedSpeakerOn: Boolean = false
+    private var savedMicMuted: Boolean = false
+    private var audioConfigured: Boolean = false
+
+    private fun configureAudioForCall(speakerOn: Boolean) {
+        val ctx = appContext ?: return
+        val am = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        if (!audioConfigured) {
+            savedAudioMode = am.mode
+            savedSpeakerOn = am.isSpeakerphoneOn
+            savedMicMuted = am.isMicrophoneMute
+            audioConfigured = true
+        }
+        am.mode = AudioManager.MODE_IN_COMMUNICATION
+        am.isMicrophoneMute = false
+        am.isSpeakerphoneOn = speakerOn
+        Log.d("CallManager", "audio routing: MODE_IN_COMMUNICATION, speaker=$speakerOn")
+    }
+
+    private fun restoreAudioAfterCall() {
+        if (!audioConfigured) return
+        val ctx = appContext ?: return
+        val am = ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        am.mode = savedAudioMode
+        am.isSpeakerphoneOn = savedSpeakerOn
+        am.isMicrophoneMute = savedMicMuted
+        audioConfigured = false
+        Log.d("CallManager", "audio routing restored")
+    }
 
     fun init(context: Context) {
         if (peerConnectionFactory != null) return
@@ -320,6 +355,11 @@ class CallManager private constructor() {
             }
             override fun onConnectionChange(newState: PeerConnection.PeerConnectionState?) {
                 Log.d("CallManager", "PC state: $newState")
+                if (newState == PeerConnection.PeerConnectionState.CONNECTED) {
+                    // 音视频都默认开扬声器；如果只是语音通话用户也希望听到外放
+                    val mode = _info.value?.mode ?: Mode.AUDIO
+                    scope.launch { configureAudioForCall(speakerOn = true) }
+                }
             }
             override fun onIceConnectionChange(newState: PeerConnection.IceConnectionState?) {
                 if (newState == PeerConnection.IceConnectionState.FAILED ||
@@ -420,6 +460,8 @@ class CallManager private constructor() {
         _cameraMuted.value = false
         pendingIce.clear()
         pendingOfferSdp = null
+        // 恢复系统音频路由（mode + speaker + mic）
+        restoreAudioAfterCall()
     }
 
     private fun flushPendingIce() {
