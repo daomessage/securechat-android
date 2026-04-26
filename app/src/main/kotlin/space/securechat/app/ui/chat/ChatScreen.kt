@@ -225,6 +225,32 @@ fun ChatScreen(
         if (granted) showVoiceRecorder = true
     }
 
+    // 视频通话需要 CAMERA + RECORD_AUDIO 运行时权限。
+    // 不申请 → WebRTC Camera2Session 抛 SecurityException 静默失败 →
+    // capturer 没产视频帧 → 对端 inbound video bytes=0(线上现象:有声没视频)。
+    val callMgrForLauncher = space.securechat.app.call.CallManager.getInstance()
+    val videoCallTargetAlias = remember { mutableStateOf<String?>(null) }
+    val videoCallPermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val cameraOk = result[android.Manifest.permission.CAMERA] == true
+        val micOk = result[android.Manifest.permission.RECORD_AUDIO] == true
+        val target = videoCallTargetAlias.value
+        videoCallTargetAlias.value = null
+        if (cameraOk && micOk && !target.isNullOrBlank()) {
+            callMgrForLauncher.call(target, space.securechat.app.call.CallManager.Mode.VIDEO)
+        }
+    }
+    val audioCallPermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val target = videoCallTargetAlias.value
+        videoCallTargetAlias.value = null
+        if (granted && !target.isNullOrBlank()) {
+            callMgrForLauncher.call(target, space.securechat.app.call.CallManager.Mode.AUDIO)
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(DarkBg)) {
 
         // 网络 Banner
@@ -264,14 +290,37 @@ fun ChatScreen(
                 )
             }
             // 通话按钮
-            val callMgr = space.securechat.app.call.CallManager.getInstance()
             IconButton(onClick = {
-                if (friendAliasId.isNotBlank()) callMgr.call(friendAliasId, space.securechat.app.call.CallManager.Mode.AUDIO)
+                if (friendAliasId.isBlank()) return@IconButton
+                val micGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.RECORD_AUDIO
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (micGranted) {
+                    callMgrForLauncher.call(friendAliasId, space.securechat.app.call.CallManager.Mode.AUDIO)
+                } else {
+                    videoCallTargetAlias.value = friendAliasId
+                    audioCallPermLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                }
             }) {
                 Icon(Icons.Default.Phone, contentDescription = "语音通话", tint = TextMuted, modifier = Modifier.size(20.dp))
             }
             IconButton(onClick = {
-                if (friendAliasId.isNotBlank()) callMgr.call(friendAliasId, space.securechat.app.call.CallManager.Mode.VIDEO)
+                if (friendAliasId.isBlank()) return@IconButton
+                val cameraGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.CAMERA
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                val micGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                    context, android.Manifest.permission.RECORD_AUDIO
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (cameraGranted && micGranted) {
+                    callMgrForLauncher.call(friendAliasId, space.securechat.app.call.CallManager.Mode.VIDEO)
+                } else {
+                    videoCallTargetAlias.value = friendAliasId
+                    videoCallPermLauncher.launch(arrayOf(
+                        android.Manifest.permission.CAMERA,
+                        android.Manifest.permission.RECORD_AUDIO
+                    ))
+                }
             }) {
                 Icon(Icons.Default.Videocam, contentDescription = "视频通话", tint = TextMuted, modifier = Modifier.size(20.dp))
             }

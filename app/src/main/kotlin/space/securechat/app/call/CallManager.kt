@@ -240,20 +240,32 @@ class CallManager private constructor() {
 
         scope.launch {
             createPeerConnection()
-            attachLocalMedia(info.mode)
 
-            // 显式指定 OfferToReceiveVideo，确保视频来电被叫方协商出视频 track
-            val answerConstraints = MediaConstraints().apply {
-                mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
-                mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo",
-                    if (info.mode == Mode.VIDEO) "true" else "false"))
-            }
+            // ⚠️ Unified Plan 关键顺序:必须先 setRemoteDescription(offer) 再 addTrack。
+            // 原因:setRemoteDescription 会根据 offer 里的 m=audio / m=video 在 PC 内部
+            // 自动建好对应 mid 的 recvonly transceiver。之后 addTrack 会复用这些 transceiver
+            // 把方向升级为 sendrecv,answer SDP 才会落在对的 mid 上。
+            //
+            // 反过来(先 addTrack 再 setRemoteDescription)会先建一组没 mid 的 sendrecv
+            // transceiver,setRemoteDescription 再为 offer 里的 m-line 创建一组占位
+            // recvonly transceiver → answer 出来 mid 0/1 是 recvonly、2/3 是 sendonly,
+            // 主叫端只在 mid 0/1 上有 receiver → inbound-rtp 一行都没有(线上现象:
+            // PWA chrome://webrtc-internals 只见 outbound-rtp / remote-inbound-rtp,
+            // 没 inbound-rtp,3 sections 而非 2 sections)。
 
             val createAndSendAnswer: () -> Unit = {
                 peerConnection?.createAnswer(object : SimpleSdpObserver() {
                     override fun onCreateSuccess(sdp: SessionDescription?) {
                         sdp ?: return
                         peerConnection?.setLocalDescription(SimpleSdpObserver(), sdp)
+                        // 关键诊断:用户报告"PWA 卡 have-local-offer 永远收不到 answer",
+                        // 但又说 Android 端已计时(=进入 CONNECTED)。日志证据可定位是
+                        // (a) Android 这里根本没执行到 → setRemoteDescription 失败/createAnswer 失败
+                        // (b) Android 执行了 sendSignalFrame 但 WS 没真正发出 → SDK transport 层 bug
+                        // (c) WS 发了但 relay 路由到 PWA 失败 → 服务端问题
+                        // 每次接听必出这条日志,失联时调本地 logcat 立刻能区分 a/b/c。
+                        Log.w("CallSignal",
+                            "→ call_answer to=${info.remoteAlias} callId=${info.callId} sdpLen=${sdp.description.length}")
                         client.sendSignalFrame(mapOf(
                             "type"     to "call_answer",
                             "to"       to info.remoteAlias,
@@ -262,27 +274,40 @@ class CallManager private constructor() {
                             "sdp_type" to "answer",
                             "crypto_v" to 1,
                         ))
+                        Log.w("CallSignal",
+                            "← call_answer sendSignalFrame() 已返回(到达 SDK transport 层)")
                         scope.launch { _state.value = State.CONNECTED }
                     }
-                }, answerConstraints)
+
+                    override fun onCreateFailure(error: String?) {
+                        Log.e("CallSignal", "createAnswer 失败! error=$error info.callId=${info.callId}")
+                    }
+                }, MediaConstraints())
+                // 注: Unified Plan 下 OfferToReceiveAudio/Video 这两个 constraint 已 deprecated,
+                // createAnswer 完全忽略,方向由 transceiver 状态决定。
+            }
+
+            val attachAndAnswer: () -> Unit = {
+                attachLocalMedia(info.mode)   // ← 在 setRemoteDescription 之后,复用已建好的 transceiver
+                createAndSendAnswer()
             }
 
             // 应用缓存的 offer SDP（call_offer 可能在 peerConnection 创建前到达）
-            // setRemoteDescription 是异步的：createAnswer 必须等 remote 已 set 才能正确生成
-            // OfferToReceiveVideo 协商。同时 ICE flush 也必须等 remote set 完成。
+            // setRemoteDescription 是异步的:必须等 remote 已 set 后才能 attachLocalMedia
+            // 然后 createAnswer。同时 ICE flush 也必须等 remote set 完成。
             val offerSdp = pendingOfferSdp
             if (offerSdp != null) {
                 pendingOfferSdp = null
                 peerConnection?.setRemoteDescription(
                     FlushAfterRemoteDescObserver {
                         flushPendingIce()
-                        createAndSendAnswer()
+                        attachAndAnswer()
                     },
                     SessionDescription(SessionDescription.Type.OFFER, offerSdp)
                 )
             } else {
-                // 兼容路径：handleIncoming 已 setRemoteDescription 的情况
-                createAndSendAnswer()
+                // 兼容路径:handleIncoming 已 setRemoteDescription 的情况,直接 attach + answer
+                attachAndAnswer()
                 flushPendingIce()
             }
         }

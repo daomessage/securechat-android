@@ -1,5 +1,7 @@
 package space.securechat.app.ui.call
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -13,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,6 +43,26 @@ fun CallScreen(callManager: CallManager) {
 
     if (state == CallManager.State.IDLE || info == null) return
     val current = info ?: return
+
+    // 接听端运行时权限申请。Manifest 声明的 CAMERA / RECORD_AUDIO 是 dangerous 权限,
+    // 不在运行时主动 requestPermissions 用户根本没机会授予 → WebRTC Camera2Session
+    // 抛 SecurityException 静默失败 → capturer 不产视频帧 → 主叫端 inbound video
+    // bytes=0(线上现象:有声没视频)。这里在点 Accept 时按 mode 申请,授予后再 answer。
+    val context = LocalContext.current
+    val videoAcceptPermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val cameraOk = result[android.Manifest.permission.CAMERA] == true
+        val micOk = result[android.Manifest.permission.RECORD_AUDIO] == true
+        if (cameraOk && micOk) callManager.answer()
+        else callManager.reject()
+    }
+    val audioAcceptPermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) callManager.answer()
+        else callManager.reject()
+    }
 
     var elapsedSec by remember(current.callId, state) { mutableIntStateOf(0) }
     LaunchedEffect(state, current.callId) {
@@ -162,7 +185,27 @@ fun CallScreen(callManager: CallManager) {
                     )
                     CallActionButton(
                         icon = Icons.Default.Call, color = Success, label = "Accept",
-                        onClick = { callManager.answer() }
+                        onClick = {
+                            if (isVideo) {
+                                val cameraGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                                    context, android.Manifest.permission.CAMERA
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                val micGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                                    context, android.Manifest.permission.RECORD_AUDIO
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                if (cameraGranted && micGranted) callManager.answer()
+                                else videoAcceptPermLauncher.launch(arrayOf(
+                                    android.Manifest.permission.CAMERA,
+                                    android.Manifest.permission.RECORD_AUDIO
+                                ))
+                            } else {
+                                val micGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                                    context, android.Manifest.permission.RECORD_AUDIO
+                                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                                if (micGranted) callManager.answer()
+                                else audioAcceptPermLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                            }
+                        }
                     )
                 }
                 CallManager.State.CONNECTED, CallManager.State.CONNECTING, CallManager.State.OUTGOING -> {
