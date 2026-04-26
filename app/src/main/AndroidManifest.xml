@@ -16,6 +16,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- phoneCall 类型:来电时启动,系统优先级最高 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <!-- Android 14 (targetSDK=34) 强制:启动 phoneCall 类型 FGS 必须同时声明
+         FOREGROUND_SERVICE_PHONE_CALL + (MANAGE_OWN_CALLS 或 DIALER 角色)。
+         我们不是拨号器,所以走 MANAGE_OWN_CALLS。否则 startForeground 抛
+         SecurityException → CallForegroundService.onStartCommand 崩溃,
+         症状:对端拨入时 Android 端进程被 kill。 -->
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <!-- WAKE_LOCK:Doze 下处理 FCM 唤醒时短暂持锁拉离线消息 -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- 电池白名单引导:跳系统设置请求免电池优化 -->
