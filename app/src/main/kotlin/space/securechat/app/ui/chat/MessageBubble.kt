@@ -2,6 +2,7 @@ package space.securechat.app.ui.chat
 
 import android.media.MediaPlayer
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -91,17 +92,27 @@ fun MessageBubble(
                 Spacer(Modifier.height(2.dp))
             }
 
-            // 消息气泡
+            // 消息气泡 — 对齐 PWA `ChatWindow.tsx`:
+            //   自己: bg-blue-600 (BlueAccent) — 一致 ✓
+            //   对方: bg-zinc-800 (Surface2) + border-zinc-700/50 (BorderStrong copy)
+            //   之前 Android 用了 Surface1(zinc-900),颜色比 PWA 更深,不一致
+            val bubbleShape = RoundedCornerShape(
+                topStart = 16.dp, topEnd = 16.dp,
+                bottomStart = if (msg.isMe) 16.dp else 4.dp,
+                bottomEnd = if (msg.isMe) 4.dp else 16.dp
+            )
             Box(
                 Modifier
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = 16.dp, topEnd = 16.dp,
-                            bottomStart = if (msg.isMe) 16.dp else 4.dp,
-                            bottomEnd = if (msg.isMe) 4.dp else 16.dp
+                    .clip(bubbleShape)
+                    .then(
+                        if (msg.isMe) Modifier
+                        else Modifier.border(
+                            width = 0.5.dp,
+                            color = BorderStrong.copy(alpha = 0.5f),
+                            shape = bubbleShape
                         )
                     )
-                    .background(if (msg.isMe) BlueAccent else Surface1)
+                    .background(if (msg.isMe) BlueAccent else Surface2)
                     .pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) }
                     .padding(horizontal = 14.dp, vertical = 10.dp)
             ) {

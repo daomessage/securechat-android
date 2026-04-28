@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -21,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -335,6 +339,40 @@ fun ChatScreen(
             }
         }
 
+        // 加载更多 — 共享逻辑(自动触发 + 占位 spinner 都用这个)
+        // 对齐 PWA Virtuoso `startReached` 自动触发,不再让用户手动点按钮
+        val loadMore: () -> Unit = lm@{
+            if (isLoadingMore || !hasMoreHistory) return@lm
+            val oldest = messages.minByOrNull { it.time } ?: return@lm
+            isLoadingMore = true
+            scope.launch {
+                try {
+                    val older = client.getHistory(convId, limit = pageSize, before = oldest.time)
+                    if (older.isEmpty()) {
+                        hasMoreHistory = false
+                    } else {
+                        val byId = (older + messages).associateBy { it.id }.values
+                            .sortedBy { it.time }
+                        messages = byId.toList()
+                        hasMoreHistory = older.size == pageSize
+                    }
+                } catch (_: Exception) {}
+                isLoadingMore = false
+            }
+        }
+
+        // 自动触发:第一个可见 item 索引 ≤ 1(顶部 spinner 或第一条消息可见)且不在 loading 中
+        // 等价于 PWA Virtuoso `startReached` 事件
+        LaunchedEffect(listState, hasMoreHistory) {
+            snapshotFlow {
+                listState.firstVisibleItemIndex
+            }.collect { idx ->
+                if (idx <= 1 && hasMoreHistory && !isLoadingMore && messages.isNotEmpty()) {
+                    loadMore()
+                }
+            }
+        }
+
         // 消息列表
         LazyColumn(
             state = listState,
@@ -342,43 +380,19 @@ fun ChatScreen(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             contentPadding = PaddingValues(vertical = 8.dp)
         ) {
-            // 加载更多按钮（顶部）
+            // 顶部加载占位:loading 中显示 spinner;hasMore 中显示透明占位(给 firstVisibleIndex 留入口)
             if (hasMoreHistory && messages.isNotEmpty()) {
                 item("load_more") {
                     Row(
                         Modifier.fillMaxWidth().padding(8.dp),
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        TextButton(
-                            onClick = {
-                                if (isLoadingMore) return@TextButton
-                                val oldest = messages.minByOrNull { it.time } ?: return@TextButton
-                                isLoadingMore = true
-                                scope.launch {
-                                    try {
-                                        val older = client.getHistory(convId, limit = pageSize, before = oldest.time)
-                                        if (older.isEmpty()) {
-                                            hasMoreHistory = false
-                                        } else {
-                                            // 合并去重，按 time 升序
-                                            val byId = (older + messages).associateBy { it.id }.values
-                                                .sortedBy { it.time }
-                                            messages = byId.toList()
-                                            hasMoreHistory = older.size == pageSize
-                                        }
-                                    } catch (_: Exception) {}
-                                    isLoadingMore = false
-                                }
-                            },
-                            enabled = !isLoadingMore
-                        ) {
-                            if (isLoadingMore) {
-                                CircularProgressIndicator(
-                                    color = BlueAccent, modifier = Modifier.size(16.dp), strokeWidth = 2.dp
-                                )
-                            } else {
-                                Text("加载更早的消息", color = BlueAccent, fontSize = 13.sp)
-                            }
+                        if (isLoadingMore) {
+                            CircularProgressIndicator(
+                                color = BlueAccent, modifier = Modifier.size(16.dp), strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("向上滚动加载更早的消息", color = TextMuted, fontSize = 11.sp)
                         }
                     }
                 }
@@ -477,7 +491,29 @@ fun ChatScreen(
                 }
             }
 
-            // 输入框
+            // 共享发送函数:Enter 键和发送按钮都走这里(避免逻辑漂移)
+            // 对齐 PWA `ChatInputBar.tsx` 的 onKeyDown Enter / onClick 双触发设计
+            val performSend: () -> Unit = perform@{
+                val text = inputText.trim()
+                if (text.isBlank() || friendAliasId.isEmpty()) return@perform
+                inputText = ""
+                val replyId = replyToMsg?.id
+                replyToMsg = null
+                scope.launch {
+                    try {
+                        client.sendMessage(convId, friendAliasId, text, replyId)
+                        // P2-H: limit 必须 ≥ 当前消息数 + 1,否则发完新消息后
+                        // getHistory 用默认 limit 截断,长会话会丢历史。
+                        messages = client.getHistory(convId, limit = pageSize.coerceAtLeast(messages.size + 1))
+                        listState.animateScrollToItem(messages.size - 1)
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // 输入框 — 对齐 PWA:
+            //   1. 焦点边框 BlueAccent(对齐 PWA `border-blue-500`)
+            //   2. ImeAction.Send + KeyboardActions 触发回车发送
+            //      (PWA 是 onKeyDown Enter && !shift,Android 物理键盘 Enter / 软键盘 Send 等价)
             OutlinedTextField(
                 value = inputText,
                 onValueChange = { text ->
@@ -487,38 +523,30 @@ fun ChatScreen(
                 placeholder = { Text("输入消息...", color = TextMuted) },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TextPrimary, unfocusedTextColor = TextPrimary,
-                    focusedBorderColor = Surface2, unfocusedBorderColor = Surface2,
+                    focusedBorderColor = BlueAccent, unfocusedBorderColor = Surface2,
                     focusedContainerColor = Surface2, unfocusedContainerColor = Surface2
                 ),
                 shape = RoundedCornerShape(20.dp),
                 maxLines = 5,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Send,
+                ),
+                keyboardActions = KeyboardActions(
+                    onSend = { performSend() }
+                ),
                 modifier = Modifier.weight(1f)
             )
 
-            // 发送按钮
+            // 发送按钮 — 32dp(对齐 PWA `w-8 h-8`),图标 16dp
             IconButton(
-                onClick = {
-                    val text = inputText.trim()
-                    if (text.isBlank() || friendAliasId.isEmpty()) return@IconButton
-                    inputText = ""
-                    val replyId = replyToMsg?.id
-                    replyToMsg = null
-                    scope.launch {
-                        try {
-                            client.sendMessage(convId, friendAliasId, text, replyId)
-                            // P2-H: limit 必须 ≥ 当前消息数 + 1,否则发完新消息后
-                            // getHistory 用默认 limit 截断,长会话会丢历史。
-                            messages = client.getHistory(convId, limit = pageSize.coerceAtLeast(messages.size + 1))
-                            listState.animateScrollToItem(messages.size - 1)
-                        } catch (_: Exception) {}
-                    }
-                },
+                onClick = performSend,
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(32.dp)
                     .clip(CircleShape)
                     .background(if (inputText.isNotBlank()) BlueAccent else Surface2)
             ) {
-                Icon(Icons.Default.Send, contentDescription = "发送", tint = TextPrimary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Send, contentDescription = "发送", tint = TextPrimary, modifier = Modifier.size(16.dp))
             }
         }
     }
