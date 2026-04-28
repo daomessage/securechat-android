@@ -115,6 +115,25 @@ fun ChatScreen(
         loadTrustAndCode()
         // 滚到底部
         if (messages.isNotEmpty()) listState.scrollToItem(messages.size - 1)
+
+        // 关键 bug 修复(2026-04-28):
+        // 之前 markAsRead 只在 EVENT_MESSAGE 进来时触发(下面的 DisposableEffect)。
+        // 但 EVENT_MESSAGE 只覆盖"打开会话期间收到的消息",不覆盖"打开会话前
+        // 已经存在的未读消息" — 那些消息在 Activity 没 mount 时直接进了 IndexedDB,
+        // SDK 不会再 replay EVENT_MESSAGE,导致 PWA 那边永远停在 delivered。
+        // 修复:进入会话且历史消息加载完后,对最新的对方消息发一次 markAsRead。
+        // (SDK 服务端只看 max_seq,发一次最新的就批量覆盖前面所有)
+        val isInForeground = lifecycleOwner.lifecycle.currentState
+            .isAtLeast(Lifecycle.State.RESUMED)
+        if (isInForeground && friendAliasId.isNotEmpty()) {
+            // 找最大 seq 的对方消息
+            val latestPeer = messages
+                .filter { !it.isMe && (it.seq ?: 0L) > 0L }
+                .maxByOrNull { it.seq ?: 0L }
+            if (latestPeer != null) {
+                client.markAsRead(convId, latestPeer.seq ?: 0L, friendAliasId)
+            }
+        }
     }
 
     // 订阅新消息
