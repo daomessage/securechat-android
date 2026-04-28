@@ -152,23 +152,30 @@ fun MessageBubble(
             ) {
                 Text(timeStr, color = TextMuted, fontSize = 10.sp)
                 if (msg.isMe) {
-                    Text(
-                        when (msg.status) {
-                            "sending"   -> "·"
-                            "sent"      -> "✓"
-                            "delivered" -> "✓✓"
-                            "read"      -> "✓✓"
-                            "failed"    -> "❗"
-                            else        -> ""
-                        },
-                        color = when (msg.status) {
-                            "read"   -> BlueAccent
-                            "failed" -> Danger
-                            else     -> TextMuted
-                        },
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    // 状态图标设计(双端对齐 PWA):
+                    // - sending:· 灰
+                    // - sent / delivered:✓ 单勾灰 — 不区分"服务端收到"和"对方设备收到"
+                    //   (跟 iMessage/Telegram 一样合并;之前 delivered 也用 ✓✓ 导致用户
+                    //    误以为已读,实则只是已送达)
+                    // - read:✓✓「已读」 亮蓝 — 跟上面拉开视觉差距
+                    // - failed:❗ 红
+                    val (symbol, withLabel) = when (msg.status) {
+                        "sending"   -> "·" to false
+                        "sent"      -> "✓" to false
+                        "delivered" -> "✓" to false   // 和 sent 视觉一致
+                        "read"      -> "✓✓" to true
+                        "failed"    -> "❗" to false
+                        else        -> "" to false
+                    }
+                    val color = when (msg.status) {
+                        "read"   -> BlueAccent
+                        "failed" -> Danger
+                        else     -> TextMuted
+                    }
+                    Text(symbol, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    if (withLabel) {
+                        Text("已读", color = color, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                    }
                 }
             }
         }

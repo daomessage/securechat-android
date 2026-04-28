@@ -208,6 +208,22 @@ fun SettingsTab(appViewModel: AppViewModel) {
                 )
                 Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp))
                 SettingRow(
+                    icon = Icons.Default.NotificationsActive,
+                    label = "推送和来电设置",
+                    subtitle = "重新打开权限引导",
+                    onClick = {
+                        // 重置引导标记后重启 MainActivity,让 BackgroundPermissionsDialog 重新弹
+                        space.securechat.app.util.BackgroundPermissionsHelper.resetGuideShown(context)
+                        // 简单粗暴重启 Activity 让 Compose 重读 shouldShowGuide
+                        val intent = (context as? android.app.Activity)?.intent
+                        if (intent != null) {
+                            (context as android.app.Activity).finish()
+                            context.startActivity(intent)
+                        }
+                    }
+                )
+                Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp))
+                SettingRow(
                     icon = Icons.Default.Info,
                     label = "关于 DAO Message",
                     subtitle = "v1.0.0 · 基于 ECDH + AES-GCM 加密",
