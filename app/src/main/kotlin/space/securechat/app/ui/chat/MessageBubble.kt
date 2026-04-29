@@ -263,22 +263,54 @@ private fun VoiceMessagePlayer(msg: StoredMessage) {
         }
         // SDK 序列化 voice 消息为 JSON: {"type":"voice","key":"...","durationMs":N}
         // 解析 msg.text 获取时长，兼容旧格式 "[voice]key|durationMs"
-        val durText = try {
+        val durationMs = try {
             val json = org.json.JSONObject(msg.text ?: "")
-            val ms = json.optLong("durationMs", -1L)
-            if (ms >= 0) "${(ms / 1000).toInt()}″" else null
+            json.optLong("durationMs", -1L).takeIf { it >= 0 } ?: 3000L
         } catch (_: Exception) {
-            // 旧格式兜底：[voice]key|durationMs
             msg.text?.removePrefix("[voice]")?.split("|")?.getOrNull(1)
-                ?.toLongOrNull()?.let { "${(it / 1000).toInt()}″" }
-        } ?: "语音"
-        Text(durText, color = TextPrimary, fontSize = 14.sp)
-        // 简易波形占位（静态）
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            listOf(6, 10, 8, 12, 6, 10, 8).forEach { h ->
-                Box(Modifier.size(width = 2.dp, height = h.dp).background(TextPrimary.copy(alpha = 0.6f)))
+                ?.toLongOrNull() ?: 3000L
+        }
+
+        // 波形 — 对齐 PWA `MessageBubbles.tsx` (line 204-234):
+        //   barCount = clamp(durationMs / 500, 12, 40)
+        //   每根高度 = 4 + sin(i * 0.7) * 8 + random(0,4)
+        //   宽度 2dp,间距 2dp
+        //   播放进度 < i/barCount 的根用 BlueAccent,其余 30% 透明
+        val barCount = ((durationMs / 500L).toInt()).coerceIn(12, 40)
+        val bars = remember(msg.id, barCount) {
+            (0 until barCount).map { i ->
+                val h = 4f + kotlin.math.sin(i * 0.7) * 8 + kotlin.random.Random.nextFloat() * 4
+                h.toFloat().coerceAtLeast(3f)
             }
         }
+        // 播放进度 (0f..1f) — 简化版:isPlaying 时固定 0.5 演示填充,真实进度需要 mediaPlayer 实时回调
+        // (PWA 用 requestAnimationFrame 跑 currentTime/duration,Android 这版先做静态视觉,
+        //  下次再加 LaunchedEffect + delay 200ms 轮询 mediaPlayer.currentPosition)
+        val progress = if (isPlaying) 0.5f else 0f
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.height(24.dp)
+        ) {
+            bars.forEachIndexed { i, h ->
+                val filled = (i.toFloat() / barCount.toFloat()) < progress
+                Box(
+                    Modifier
+                        .size(width = 2.dp, height = h.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .background(
+                            if (filled) TextPrimary
+                            else TextPrimary.copy(alpha = 0.3f)
+                        )
+                )
+            }
+        }
+        // 时长显示
+        Text(
+            "${(durationMs / 1000L).toInt()}″",
+            color = TextPrimary.copy(alpha = 0.7f),
+            fontSize = 11.sp
+        )
     }
 }
 
@@ -324,7 +356,8 @@ private fun ImageMessageBubble(msg: StoredMessage) {
 
     Box(
         modifier = Modifier
-            .size(width = 200.dp, height = 160.dp)
+            // 对齐 PWA `max-w-[220px] max-h-[220px]`(MessageBubbles.tsx line 50)
+            .size(width = 220.dp, height = 220.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(TextMuted.copy(alpha = 0.15f))
             .clickable(enabled = cachedFile != null) {

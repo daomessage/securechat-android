@@ -5,6 +5,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -286,76 +288,117 @@ fun ChatScreen(
             }
         }
 
-        // 顶栏
-        Row(
-            Modifier.fillMaxWidth().background(Surface1).padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = TextPrimary)
-            }
-            Box(
-                Modifier.size(40.dp).clip(CircleShape).background(BlueAccent.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
+        // 顶栏 — 对齐 PWA `ChatWindow.tsx` (line 224-302):
+        //   背景: bg-zinc-950/80 backdrop-blur-md (DarkBg 80% alpha,无原生 backdrop blur API
+        //         Compose 简化为 80% alpha 即可视觉接近)
+        //   高度: 56dp (p-3 + 32 图标 ≈ 12*2 + 32)
+        //   下边框: border-b border-zinc-800
+        //   返回按钮: ChevronLeft 24dp
+        //   昵称行: alias_id 字号 16sp Bold + 信任徽章贴在右边
+        //   副标题: 「正在输入...」 / 「点击上方可核查端到端加密指纹」
+        //   右侧: Phone + Videocam 2 个图标(跟核验图标合并到昵称行,不放最右)
+        val isVerified = trustState is space.securechat.sdk.security.TrustState.Verified
+        Column(Modifier.fillMaxWidth().background(DarkBg.copy(alpha = 0.8f))) {
+            Row(
+                Modifier.fillMaxWidth().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    friendNickname.take(2).uppercase().ifEmpty { "?" },
-                    color = BlueAccent, fontWeight = FontWeight.Bold
-                )
-            }
-            Column(Modifier.weight(1f)) {
-                Text(friendNickname.ifEmpty { "加载中..." }, color = TextPrimary, fontWeight = FontWeight.SemiBold)
-                Text(
-                    if (isTyping) "正在输入..." else "🔒 端到端加密",
-                    color = if (isTyping) Success else TextMuted,
-                    fontSize = 12.sp
-                )
-            }
-            // 通话按钮
-            IconButton(onClick = {
-                if (friendAliasId.isBlank()) return@IconButton
-                val micGranted = androidx.core.content.ContextCompat.checkSelfPermission(
-                    context, android.Manifest.permission.RECORD_AUDIO
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                if (micGranted) {
-                    callMgrForLauncher.call(friendAliasId, space.securechat.app.call.CallManager.Mode.AUDIO)
-                } else {
-                    videoCallTargetAlias.value = friendAliasId
-                    audioCallPermLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                IconButton(onClick = onBack, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Default.KeyboardArrowLeft, contentDescription = "返回",
+                        tint = TextMutedLight, modifier = Modifier.size(24.dp))
                 }
-            }) {
-                Icon(Icons.Default.Phone, contentDescription = "语音通话", tint = TextMuted, modifier = Modifier.size(20.dp))
-            }
-            IconButton(onClick = {
-                if (friendAliasId.isBlank()) return@IconButton
-                val cameraGranted = androidx.core.content.ContextCompat.checkSelfPermission(
-                    context, android.Manifest.permission.CAMERA
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                val micGranted = androidx.core.content.ContextCompat.checkSelfPermission(
-                    context, android.Manifest.permission.RECORD_AUDIO
-                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-                if (cameraGranted && micGranted) {
-                    callMgrForLauncher.call(friendAliasId, space.securechat.app.call.CallManager.Mode.VIDEO)
-                } else {
-                    videoCallTargetAlias.value = friendAliasId
-                    videoCallPermLauncher.launch(arrayOf(
-                        android.Manifest.permission.CAMERA,
-                        android.Manifest.permission.RECORD_AUDIO
-                    ))
+                Spacer(Modifier.width(4.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            // 对齐 PWA: 显示 alias_id 而不是 nickname
+                            friendAliasId.ifEmpty { friendNickname.ifEmpty { "聊天" } },
+                            color = TextPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 16.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        // 核验徽章 — 已核验显示绿盾,未核验显示「未核验安全会话」按钮(对齐 PWA)
+                        if (isVerified) {
+                            Icon(
+                                Icons.Default.VerifiedUser,
+                                contentDescription = "已核验",
+                                tint = Success,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        } else {
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Warning.copy(alpha = 0.1f))
+                                    .border(0.5.dp, Warning.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+                                    .clickable { showSecurityDialog = true }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.GppMaybe,
+                                    contentDescription = null,
+                                    tint = Warning,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    "未核验安全会话",
+                                    color = Warning,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        if (isTyping) "正在输入..." else "点击上方可核查端到端加密指纹",
+                        color = if (isTyping) Success else TextMuted,
+                        fontSize = 10.sp
+                    )
                 }
-            }) {
-                Icon(Icons.Default.Videocam, contentDescription = "视频通话", tint = TextMuted, modifier = Modifier.size(20.dp))
+                // 通话按钮 — 紧贴在右侧(对齐 PWA gap-1)
+                IconButton(onClick = {
+                    if (friendAliasId.isBlank()) return@IconButton
+                    val micGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.RECORD_AUDIO
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    if (micGranted) {
+                        callMgrForLauncher.call(friendAliasId, space.securechat.app.call.CallManager.Mode.AUDIO)
+                    } else {
+                        videoCallTargetAlias.value = friendAliasId
+                        audioCallPermLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                    }
+                }) {
+                    Icon(Icons.Default.Phone, contentDescription = "语音通话", tint = TextMutedLight, modifier = Modifier.size(20.dp))
+                }
+                IconButton(onClick = {
+                    if (friendAliasId.isBlank()) return@IconButton
+                    val cameraGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.CAMERA
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    val micGranted = androidx.core.content.ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.RECORD_AUDIO
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    if (cameraGranted && micGranted) {
+                        callMgrForLauncher.call(friendAliasId, space.securechat.app.call.CallManager.Mode.VIDEO)
+                    } else {
+                        videoCallTargetAlias.value = friendAliasId
+                        videoCallPermLauncher.launch(arrayOf(
+                            android.Manifest.permission.CAMERA,
+                            android.Manifest.permission.RECORD_AUDIO
+                        ))
+                    }
+                }) {
+                    Icon(Icons.Default.Videocam, contentDescription = "视频通话", tint = TextMutedLight, modifier = Modifier.size(20.dp))
+                }
             }
-            // 信任状态图标 — 点击弹安全码 Modal
-            val isVerified = trustState is space.securechat.sdk.security.TrustState.Verified
-            IconButton(onClick = { showSecurityDialog = true }) {
-                Icon(
-                    imageVector = if (isVerified) Icons.Default.VerifiedUser else Icons.Default.GppMaybe,
-                    contentDescription = if (isVerified) "已验证" else "未验证",
-                    tint = if (isVerified) Success else Warning
-                )
-            }
+            // 下边框 — 对齐 PWA `border-b border-zinc-800`
+            Box(Modifier.fillMaxWidth().height(0.5.dp).background(BorderDefault))
         }
 
         // 加载更多 — 共享逻辑(自动触发 + 占位 spinner 都用这个)
@@ -463,53 +506,6 @@ fun ChatScreen(
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // 附件按钮 — 弹出 图/文件/语音 菜单
-            Box {
-                IconButton(
-                    onClick = { showAttachMenu = !showAttachMenu },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "添加附件", tint = TextMuted)
-                }
-                DropdownMenu(
-                    expanded = showAttachMenu,
-                    onDismissRequest = { showAttachMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("照片") },
-                        leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
-                        onClick = {
-                            showAttachMenu = false
-                            photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("文件") },
-                        leadingIcon = { Icon(Icons.Default.AttachFile, contentDescription = null) },
-                        onClick = {
-                            showAttachMenu = false
-                            filePicker.launch("*/*")
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("语音") },
-                        leadingIcon = { Icon(Icons.Default.Mic, contentDescription = null) },
-                        onClick = {
-                            showAttachMenu = false
-                            val perm = android.content.pm.PackageManager.PERMISSION_GRANTED
-                            if (androidx.core.content.ContextCompat.checkSelfPermission(
-                                    context, android.Manifest.permission.RECORD_AUDIO
-                                ) == perm
-                            ) {
-                                showVoiceRecorder = true
-                            } else {
-                                audioPermLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
-                            }
-                        }
-                    )
-                }
-            }
-
             // 共享发送函数:Enter 键和发送按钮都走这里(避免逻辑漂移)
             // 对齐 PWA `ChatInputBar.tsx` 的 onKeyDown Enter / onClick 双触发设计
             val performSend: () -> Unit = perform@{
@@ -527,6 +523,25 @@ fun ChatScreen(
                         listState.animateScrollToItem(messages.size - 1)
                     } catch (_: Exception) {}
                 }
+            }
+
+            // ─── 附件按钮 (对齐 PWA 平铺设计) ───
+            // PWA `ChatInputBar.tsx` line 199-206:Image / Paperclip 2 个独立按钮平铺,
+            // 不用 DropdownMenu(更扁平、操作 1 步少)
+            // 麦克风按钮放输入框右侧条件渲染(没文字时显示)— 对齐 PWA line 241-250
+            IconButton(
+                onClick = {
+                    photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(Icons.Default.Image, contentDescription = "图片", tint = TextMutedLight, modifier = Modifier.size(20.dp))
+            }
+            IconButton(
+                onClick = { filePicker.launch("*/*") },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(Icons.Default.AttachFile, contentDescription = "文件", tint = TextMutedLight, modifier = Modifier.size(20.dp))
             }
 
             // 输入框 — 对齐 PWA:
@@ -557,15 +572,36 @@ fun ChatScreen(
                 modifier = Modifier.weight(1f)
             )
 
-            // 发送按钮 — 32dp(对齐 PWA `w-8 h-8`),图标 16dp
-            IconButton(
-                onClick = performSend,
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(if (inputText.isNotBlank()) BlueAccent else Surface2)
-            ) {
-                Icon(Icons.Default.Send, contentDescription = "发送", tint = TextPrimary, modifier = Modifier.size(16.dp))
+            // ─── 右侧条件按钮 ───
+            // 有文字时:发送按钮 32dp BlueAccent (对齐 PWA `w-8 h-8 bg-blue-600`)
+            // 没文字时:麦克风按钮 40dp 透明 (对齐 PWA mic icon)
+            if (inputText.isNotBlank()) {
+                IconButton(
+                    onClick = performSend,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(BlueAccent)
+                ) {
+                    Icon(Icons.Default.Send, contentDescription = "发送", tint = TextPrimary, modifier = Modifier.size(16.dp))
+                }
+            } else {
+                IconButton(
+                    onClick = {
+                        val perm = android.content.pm.PackageManager.PERMISSION_GRANTED
+                        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                                context, android.Manifest.permission.RECORD_AUDIO
+                            ) == perm
+                        ) {
+                            showVoiceRecorder = true
+                        } else {
+                            audioPermLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(Icons.Default.Mic, contentDescription = "录音", tint = TextMutedLight, modifier = Modifier.size(20.dp))
+                }
             }
         }
     }
