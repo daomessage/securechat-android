@@ -17,10 +17,34 @@ android {
 
         // 向量图支持
         vectorDrawables { useSupportLibrary = true }
+
+        // P1-3 设置页版本信息(对齐 PWA SettingsTab.tsx 的 __PWA_VERSION__/__GIT_COMMIT__/__BUILD_TIME__):
+        // 用 buildConfigField 把 git commit + 构建时间嵌入到 BuildConfig.kt,运行时读
+        // 注意:git rev-parse 失败(比如不在 git 仓库中构建)时 fallback 'unknown'
+        val gitCommit = try {
+            providers.exec {
+                commandLine("git", "rev-parse", "--short", "HEAD")
+            }.standardOutput.asText.get().trim()
+        } catch (_: Exception) { "unknown" }
+        val gitBranch = try {
+            providers.exec {
+                commandLine("git", "rev-parse", "--abbrev-ref", "HEAD")
+            }.standardOutput.asText.get().trim()
+        } catch (_: Exception) { "unknown" }
+        // 用 shell 命令读时间(避开 Gradle 沙箱对 java.* 的限制)
+        val buildTime = try {
+            providers.exec {
+                commandLine("date", "+%Y-%m-%d %H:%M:%S")
+            }.standardOutput.asText.get().trim()
+        } catch (_: Exception) { "unknown" }
+        buildConfigField("String", "GIT_COMMIT", "\"$gitCommit\"")
+        buildConfigField("String", "GIT_BRANCH", "\"$gitBranch\"")
+        buildConfigField("String", "BUILD_TIME", "\"$buildTime\"")
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true   // 启用 BuildConfig 类生成,默认 AGP 8+ 关掉了
         aidl = false
         renderScript = false
         resValues = false

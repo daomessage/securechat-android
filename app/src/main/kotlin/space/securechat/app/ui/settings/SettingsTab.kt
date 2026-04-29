@@ -15,6 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -226,8 +227,55 @@ fun SettingsTab(appViewModel: AppViewModel) {
                 SettingRow(
                     icon = Icons.Default.Info,
                     label = "关于 DAO Message",
-                    subtitle = "v1.0.0 · 基于 ECDH + AES-GCM 加密",
+                    subtitle = "v${space.securechat.app.BuildConfig.VERSION_NAME} · 基于 ECDH + AES-GCM 加密",
                     onClick = {}
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // 版本信息分组 — 对齐 PWA `SettingsTab.tsx` 的版本信息卡(line 142-183)
+        Text(
+            "版本信息",
+            color = TextMutedLight,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+        )
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Surface1),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column {
+                VersionInfoRow(
+                    icon = Icons.Default.Info,
+                    label = "App 版本",
+                    value = space.securechat.app.BuildConfig.VERSION_NAME
+                )
+                Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp))
+                VersionInfoRow(
+                    icon = Icons.Default.Fingerprint,
+                    label = "SDK 版本",
+                    value = "@daomessage_sdk/sdk"
+                )
+                Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp))
+                VersionInfoRow(
+                    icon = Icons.Default.AccountTree,
+                    label = "Git Commit",
+                    value = "${space.securechat.app.BuildConfig.GIT_BRANCH}@${space.securechat.app.BuildConfig.GIT_COMMIT}",
+                    onCopy = {
+                        val v = "${space.securechat.app.BuildConfig.GIT_BRANCH}@${space.securechat.app.BuildConfig.GIT_COMMIT}"
+                        val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText("git", v))
+                    }
+                )
+                Divider(color = Surface2, thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp))
+                VersionInfoRow(
+                    icon = Icons.Default.Schedule,
+                    label = "构建时间",
+                    value = space.securechat.app.BuildConfig.BUILD_TIME
                 )
             }
         }
@@ -388,5 +436,47 @@ private fun SettingRow(icon: ImageVector, label: String, subtitle: String, onCli
             Text(subtitle, color = TextMuted, fontSize = 12.sp)
         }
         Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+    }
+}
+
+/**
+ * 版本信息行 — 对齐 PWA SettingsTab 版本信息分组的 4 行
+ * 不带跳转,只展示 + 可选「点击复制」按钮(对齐 PWA Git Commit 行的 Copy)
+ */
+@Composable
+private fun VersionInfoRow(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    onCopy: (() -> Unit)? = null,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = BrandPrimaryText, modifier = Modifier.size(20.dp))
+        Text(label, color = TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Text(
+            value,
+            color = TextMuted,
+            fontSize = 11.sp,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 200.dp)
+        )
+        if (onCopy != null) {
+            IconButton(onClick = onCopy, modifier = Modifier.size(28.dp)) {
+                Icon(
+                    Icons.Default.ContentCopy,
+                    contentDescription = "复制",
+                    tint = TextMuted,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
     }
 }
