@@ -3,6 +3,8 @@ package space.securechat.app.ui.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -80,7 +82,11 @@ fun SettingsTab(appViewModel: AppViewModel) {
     }
 
     Column(
-        Modifier.fillMaxSize().background(DarkBg).padding(20.dp),
+        Modifier
+            .fillMaxSize()
+            .background(DarkBg)
+            .verticalScroll(rememberScrollState())
+            .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         Text("设置", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -280,7 +286,7 @@ fun SettingsTab(appViewModel: AppViewModel) {
             }
         }
 
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(8.dp))
 
         // 登出
         Button(
